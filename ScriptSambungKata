@@ -1,0 +1,1166 @@
+--[[
+    ╔═══════════════════════════════════════╗
+    ║   SAMBUNG KATA - Roblox Executor     ║
+    ║   Correction Mode = huruf awal       ║
+    ║   benar → langsung diterima          ║
+    ╚═══════════════════════════════════════╝
+]]
+
+-- Services
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+-- Hapus GUI lama
+if game.CoreGui:FindFirstChild("SambungKataGUI") then
+    game.CoreGui:FindFirstChild("SambungKataGUI"):Destroy()
+end
+
+-- ===================== DATABASE KATA =====================
+local WordDB = {
+    a = {"apel","angin","awan","air","api","alam","akar","anak","ayam","adil","awal","akhir","angsa","asli","acara","agung","ahli","ajaib","alat","aman","ampun","angkat","apa","arah","arti","asap","atap","ayah","abadi","aksi","ambon","aneh","april","arif","asam","awas"},
+    b = {"buku","bulan","bumi","batu","burung","bunga","beras","berani","baik","besar","biru","bakso","bambu","bangsa","bantu","baru","basah","batik","bebas","benar","benci","berat","besok","bijak","bintang","bisa","boleh","buah","budaya","bulat","bosan","bekas","belum","bentuk"},
+    c = {"cinta","cahaya","cepat","cuaca","cantik","cerdas","cerah","cerita","cari","cukup","cara","celana","cemara","cermin","cicak","coklat","contoh","coba","cocok","cuci","cuma","curi","calon","capai","cemas"},
+    d = {"daun","desa","dalam","dunia","diam","dekat","deras","dingin","dua","danau","dari","datang","damai","dapat","dasar","daging","darat","daya","debu","demi","depan","dewa","diri","doa","duduk","dulu","duri"},
+    e = {"elang","emas","enak","embun","emosi","empat","energi","ekor","era","esok","elemen"},
+    f = {"fakta","film","foto","fiksi","final","flora","fauna","fungsi","filosofi","fantasi","fokus"},
+    g = {"gajah","gunung","gula","garam","gelap","gembira","gerak","gitar","guru","gadis","ganti","garis","gaya","gempa","gigi","goreng","gratis","gugur","guna","gurun","gagal","galak"},
+    h = {"hari","hujan","hutan","hijau","harum","hebat","hewan","hitam","habis","hadiah","halaman","halus","hampir","hangat","hanya","harap","harga","hasil","hati","haus","hemat","heran","hidup","hilang","hitung","hormat","huruf","hubung"},
+    i = {"ikan","indah","ilmu","ibu","inti","istana","ingin","ingat","isi","ikut","impian","intan","iris","istri","irama","izin","ikhlas"},
+    j = {"jalan","jeruk","jembatan","juara","jelas","jiwa","janji","jaga","jagung","jarak","jari","jasa","jatuh","jawab","jenis","jernih","jual","juga","jumpa","juru","jujur"},
+    k = {"kata","kucing","kecil","kuat","kabar","kali","kamar","kampung","kapan","karya","kasih","kayu","keluar","kembali","kenal","keren","kerja","kiri","kopi","kotak","kuda","kunci","kuning","kursi","kulit","kawan","kebun","keras"},
+    l = {"laut","langit","lampu","lebar","lembut","lama","lagu","lain","lambat","langkah","lantai","lapar","lari","lebah","lebih","lelah","lemah","lemon","lepas","lewat","lihat","lima","logam","lucu","luka","lulus","lupa","lurus","luas"},
+    m = {"malam","matahari","merah","muda","mahal","main","makan","malas","malu","mandi","manis","masak","masih","mati","mau","mekar","memang","mesin","milik","mimpi","minta","minum","mirip","mobil","mulia","mulai","murah","murid","musim","musik","mutiara","mawar"},
+    n = {"naga","nama","nasi","novel","negara","nenek","nilai","niat","nikmat","normal","nomor","nuansa","nuri","nyala","nyaman","nyata","nyawa","nyanyi","nyaris","nol"},
+    o = {"orang","obat","oleh","opera","ombak","omong","otak","olah"},
+    p = {"pagi","pantai","panas","pintar","pelan","pohon","padi","paham","pakai","paling","pandai","panen","panjang","papan","pasar","pasir","pasti","pecah","pedas","penuh","perak","pergi","perlu","pesta","petir","pikir","pilih","pindah","pintu","polisi","puas","pulang","pulau","puncak","putih","putus","putra"},
+    r = {"rumah","raja","rakyat","ringan","rasa","rekan","riang","rapi","ragam","rajin","rambut","rantai","rata","rendah","resmi","ribu","rindu","robek","ruang","rugi","rukun","rumit","rupa","rusak","resah","rawan"},
+    s = {"satu","siang","sinar","suara","suka","sabar","salah","salam","sama","sampai","santai","sapi","sapu","sawah","sedih","segar","sehat","selalu","semua","senang","sendiri","seni","senyum","sepatu","siap","sibuk","simpan","sisi","sore","sudah","sulit","sungai","sunyi","surat","susah","susu"},
+    t = {"teman","tanah","tangan","tinggi","takut","tali","tamu","tanda","tanpa","tanya","tari","tawa","tebal","tegas","telur","tenang","tengah","tepi","tepat","terang","terima","tetap","tidak","tidur","tiga","tinggal","tinta","titik","toko","tolong","tua","tugas","tukar","tulis","tumbuh","turun","tutup"},
+    u = {"udara","ujian","ukir","ular","ulang","untuk","untung","upah","upaya","urus","usaha","utama","utara","utuh","unik","uang","ubah"},
+    v = {"variasi","vokal","volume","visi","viral"},
+    w = {"waktu","wangi","warna","wajar","wajah","wajib","warga","warung","wawasan","wujud","wilayah","wisata"},
+    y = {"yakin","yang"},
+    z = {"zaman","zona","zat"}
+}
+
+-- ===================== GAME STATE =====================
+local State = {
+    active = false,
+    currentWord = "",
+    lastLetter = "",
+    score = 0,
+    combo = 0,
+    maxCombo = 0,
+    lives = 3,
+    wordsUsed = {},
+    history = {},
+    difficulty = "Normal",
+    timeLeft = 15,
+    timerOn = false,
+    hints = 3,
+    correctionMode = true, -- ON = huruf awal benar langsung diterima
+    totalAttempts = 0,
+    wrongCount = 0,
+    bestScore = 0,
+    gamesPlayed = 0,
+    paused = false,
+}
+
+local DiffSettings = {
+    Easy    = {time = 30, lives = 5, hints = 5, mult = 1},
+    Normal  = {time = 15, lives = 3, hints = 3, mult = 1.5},
+    Hard    = {time = 10, lives = 2, hints = 1, mult = 2},
+    Extreme = {time = 5,  lives = 1, hints = 0, mult = 3},
+}
+
+-- ===================== UI HELPERS =====================
+local function Corner(p, r)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, r or 8)
+    c.Parent = p
+end
+
+local function Stroke(p, col, t)
+    local s = Instance.new("UIStroke")
+    s.Color = col or Color3.fromRGB(255,255,255)
+    s.Thickness = t or 1
+    s.Parent = p
+end
+
+local function Tw(obj, props, dur)
+    local tw = TweenService:Create(obj, TweenInfo.new(dur or 0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props)
+    tw:Play()
+    return tw
+end
+
+-- ===================== BUILD GUI =====================
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "SambungKataGUI"
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Gui.ResetOnSpawn = false
+Gui.Parent = game.CoreGui
+
+-- Main
+local Main = Instance.new("Frame")
+Main.Name = "Main"
+Main.Size = UDim2.new(0, 500, 0, 640)
+Main.Position = UDim2.new(0.5, -250, 0.5, -320)
+Main.BackgroundColor3 = Color3.fromRGB(12, 12, 28)
+Main.BorderSizePixel = 0
+Main.Parent = Gui
+Corner(Main, 14)
+Stroke(Main, Color3.fromRGB(70, 70, 180), 2)
+
+-- Title Bar
+local TBar = Instance.new("Frame")
+TBar.Size = UDim2.new(1, 0, 0, 44)
+TBar.BackgroundColor3 = Color3.fromRGB(28, 28, 70)
+TBar.BorderSizePixel = 0
+TBar.Parent = Main
+Corner(TBar, 14)
+
+local TBarFix = Instance.new("Frame")
+TBarFix.Size = UDim2.new(1, 0, 0, 14)
+TBarFix.Position = UDim2.new(0, 0, 1, -14)
+TBarFix.BackgroundColor3 = Color3.fromRGB(28, 28, 70)
+TBarFix.BorderSizePixel = 0
+TBarFix.Parent = TBar
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -90, 1, 0)
+Title.Position = UDim2.new(0, 12, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "🎮 SAMBUNG KATA"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TBar
+
+local MinBtn = Instance.new("TextButton")
+MinBtn.Size = UDim2.new(0, 28, 0, 28)
+MinBtn.Position = UDim2.new(1, -68, 0.5, -14)
+MinBtn.BackgroundColor3 = Color3.fromRGB(255, 190, 0)
+MinBtn.Text = "—"
+MinBtn.TextColor3 = Color3.fromRGB(0,0,0)
+MinBtn.TextSize = 14
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.Parent = TBar
+Corner(MinBtn, 7)
+
+local XBtn = Instance.new("TextButton")
+XBtn.Size = UDim2.new(0, 28, 0, 28)
+XBtn.Position = UDim2.new(1, -34, 0.5, -14)
+XBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+XBtn.Text = "✕"
+XBtn.TextColor3 = Color3.fromRGB(255,255,255)
+XBtn.TextSize = 13
+XBtn.Font = Enum.Font.GothamBold
+XBtn.Parent = TBar
+Corner(XBtn, 7)
+
+-- Content
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -16, 1, -52)
+Content.Position = UDim2.new(0, 8, 0, 48)
+Content.BackgroundTransparency = 1
+Content.ClipsDescendants = true
+Content.Parent = Main
+
+-- ── Stats Bar ──
+local Stats = Instance.new("Frame")
+Stats.Size = UDim2.new(1, 0, 0, 38)
+Stats.BackgroundColor3 = Color3.fromRGB(22, 22, 52)
+Stats.BorderSizePixel = 0
+Stats.Parent = Content
+Corner(Stats, 8)
+Stroke(Stats, Color3.fromRGB(50,50,120), 1)
+
+local function MakeStat(txt, col, pos)
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.new(0.25, 0, 1, 0)
+    l.Position = pos
+    l.BackgroundTransparency = 1
+    l.Text = txt
+    l.TextColor3 = col
+    l.TextSize = 14
+    l.Font = Enum.Font.GothamBold
+    l.Parent = Stats
+    return l
+end
+
+local LScore  = MakeStat("⭐ 0",  Color3.fromRGB(255,215,0),   UDim2.new(0,0,0,0))
+local LCombo  = MakeStat("🔥 x0", Color3.fromRGB(255,100,50),  UDim2.new(0.25,0,0,0))
+local LLives  = MakeStat("❤️ 3",  Color3.fromRGB(255,80,80),   UDim2.new(0.5,0,0,0))
+local LHints  = MakeStat("💡 3",  Color3.fromRGB(100,200,255), UDim2.new(0.75,0,0,0))
+
+-- ── Timer ──
+local TimerBG = Instance.new("Frame")
+TimerBG.Size = UDim2.new(1, 0, 0, 20)
+TimerBG.Position = UDim2.new(0, 0, 0, 42)
+TimerBG.BackgroundColor3 = Color3.fromRGB(18, 18, 38)
+TimerBG.BorderSizePixel = 0
+TimerBG.Parent = Content
+Corner(TimerBG, 5)
+
+local TimerFill = Instance.new("Frame")
+TimerFill.Size = UDim2.new(1, -4, 1, -4)
+TimerFill.Position = UDim2.new(0, 2, 0, 2)
+TimerFill.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+TimerFill.BorderSizePixel = 0
+TimerFill.Parent = TimerBG
+Corner(TimerFill, 4)
+
+local TimerTxt = Instance.new("TextLabel")
+TimerTxt.Size = UDim2.new(1, 0, 1, 0)
+TimerTxt.BackgroundTransparency = 1
+TimerTxt.Text = "⏱️ 15s"
+TimerTxt.TextColor3 = Color3.fromRGB(255,255,255)
+TimerTxt.TextSize = 11
+TimerTxt.Font = Enum.Font.GothamBold
+TimerTxt.ZIndex = 2
+TimerTxt.Parent = TimerBG
+
+-- ── Word Display ──
+local WordBox = Instance.new("Frame")
+WordBox.Size = UDim2.new(1, 0, 0, 75)
+WordBox.Position = UDim2.new(0, 0, 0, 66)
+WordBox.BackgroundColor3 = Color3.fromRGB(22, 22, 58)
+WordBox.BorderSizePixel = 0
+WordBox.Parent = Content
+Corner(WordBox, 10)
+Stroke(WordBox, Color3.fromRGB(70, 50, 160), 1)
+
+local SubLabel = Instance.new("TextLabel")
+SubLabel.Size = UDim2.new(1, -16, 0, 18)
+SubLabel.Position = UDim2.new(0, 8, 0, 4)
+SubLabel.BackgroundTransparency = 1
+SubLabel.Text = "Kata Saat Ini:"
+SubLabel.TextColor3 = Color3.fromRGB(140, 140, 190)
+SubLabel.TextSize = 11
+SubLabel.Font = Enum.Font.Gotham
+SubLabel.TextXAlignment = Enum.TextXAlignment.Left
+SubLabel.Parent = WordBox
+
+local BigWord = Instance.new("TextLabel")
+BigWord.Size = UDim2.new(1, -16, 0, 32)
+BigWord.Position = UDim2.new(0, 8, 0, 22)
+BigWord.BackgroundTransparency = 1
+BigWord.Text = "Tekan START!"
+BigWord.TextColor3 = Color3.fromRGB(255,255,255)
+BigWord.TextSize = 26
+BigWord.Font = Enum.Font.GothamBold
+BigWord.Parent = WordBox
+
+local ReqLabel = Instance.new("TextLabel")
+ReqLabel.Size = UDim2.new(1, -16, 0, 18)
+ReqLabel.Position = UDim2.new(0, 8, 1, -20)
+ReqLabel.BackgroundTransparency = 1
+ReqLabel.Text = ""
+ReqLabel.TextColor3 = Color3.fromRGB(255,200,50)
+ReqLabel.TextSize = 12
+ReqLabel.Font = Enum.Font.GothamSemibold
+ReqLabel.TextXAlignment = Enum.TextXAlignment.Left
+ReqLabel.Parent = WordBox
+
+-- ── Input ──
+local InputRow = Instance.new("Frame")
+InputRow.Size = UDim2.new(1, 0, 0, 40)
+InputRow.Position = UDim2.new(0, 0, 0, 147)
+InputRow.BackgroundTransparency = 1
+InputRow.Parent = Content
+
+local InputBox = Instance.new("TextBox")
+InputBox.Size = UDim2.new(1, -95, 1, 0)
+InputBox.BackgroundColor3 = Color3.fromRGB(30, 30, 68)
+InputBox.Text = ""
+InputBox.PlaceholderText = "Ketik kata..."
+InputBox.PlaceholderColor3 = Color3.fromRGB(90, 90, 140)
+InputBox.TextColor3 = Color3.fromRGB(255,255,255)
+InputBox.TextSize = 16
+InputBox.Font = Enum.Font.GothamSemibold
+InputBox.ClearTextOnFocus = false
+InputBox.Parent = InputRow
+Corner(InputBox, 8)
+Stroke(InputBox, Color3.fromRGB(70, 70, 160), 1)
+
+local SendBtn = Instance.new("TextButton")
+SendBtn.Size = UDim2.new(0, 85, 1, 0)
+SendBtn.Position = UDim2.new(1, -85, 0, 0)
+SendBtn.BackgroundColor3 = Color3.fromRGB(40, 140, 40)
+SendBtn.Text = "KIRIM"
+SendBtn.TextColor3 = Color3.fromRGB(255,255,255)
+SendBtn.TextSize = 14
+SendBtn.Font = Enum.Font.GothamBold
+SendBtn.Parent = InputRow
+Corner(SendBtn, 8)
+
+-- ── Correction Mode Indicator ──
+local CMBar = Instance.new("Frame")
+CMBar.Size = UDim2.new(1, 0, 0, 26)
+CMBar.Position = UDim2.new(0, 0, 0, 192)
+CMBar.BackgroundColor3 = Color3.fromRGB(28, 55, 28)
+CMBar.BorderSizePixel = 0
+CMBar.Parent = Content
+Corner(CMBar, 6)
+
+local CMLabel = Instance.new("TextLabel")
+CMLabel.Size = UDim2.new(1, -8, 1, 0)
+CMLabel.Position = UDim2.new(0, 4, 0, 0)
+CMLabel.BackgroundTransparency = 1
+CMLabel.Text = "✅ Correction Mode ON — Huruf awal benar = langsung diterima"
+CMLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+CMLabel.TextSize = 10
+CMLabel.Font = Enum.Font.Gotham
+CMLabel.TextXAlignment = Enum.TextXAlignment.Left
+CMLabel.Parent = CMBar
+
+-- ── Message ──
+local MsgBox = Instance.new("Frame")
+MsgBox.Size = UDim2.new(1, 0, 0, 38)
+MsgBox.Position = UDim2.new(0, 0, 0, 222)
+MsgBox.BackgroundColor3 = Color3.fromRGB(22, 22, 48)
+MsgBox.BorderSizePixel = 0
+MsgBox.Parent = Content
+Corner(MsgBox, 7)
+
+local MsgLabel = Instance.new("TextLabel")
+MsgLabel.Size = UDim2.new(1, -8, 1, 0)
+MsgLabel.Position = UDim2.new(0, 4, 0, 0)
+MsgLabel.BackgroundTransparency = 1
+MsgLabel.Text = "👋 Selamat datang! Tekan START untuk bermain."
+MsgLabel.TextColor3 = Color3.fromRGB(200, 200, 255)
+MsgLabel.TextSize = 12
+MsgLabel.Font = Enum.Font.Gotham
+MsgLabel.TextXAlignment = Enum.TextXAlignment.Left
+MsgLabel.TextWrapped = true
+MsgLabel.Parent = MsgBox
+
+-- ── History ──
+local HistFrame = Instance.new("Frame")
+HistFrame.Size = UDim2.new(1, 0, 0, 100)
+HistFrame.Position = UDim2.new(0, 0, 0, 265)
+HistFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 40)
+HistFrame.BorderSizePixel = 0
+HistFrame.Parent = Content
+Corner(HistFrame, 8)
+Stroke(HistFrame, Color3.fromRGB(45, 45, 110), 1)
+
+local HistTitle = Instance.new("TextLabel")
+HistTitle.Size = UDim2.new(1, -8, 0, 18)
+HistTitle.Position = UDim2.new(0, 8, 0, 2)
+HistTitle.BackgroundTransparency = 1
+HistTitle.Text = "📜 Riwayat:"
+HistTitle.TextColor3 = Color3.fromRGB(160, 160, 210)
+HistTitle.TextSize = 11
+HistTitle.Font = Enum.Font.GothamSemibold
+HistTitle.TextXAlignment = Enum.TextXAlignment.Left
+HistTitle.Parent = HistFrame
+
+local HistScroll = Instance.new("ScrollingFrame")
+HistScroll.Size = UDim2.new(1, -8, 1, -22)
+HistScroll.Position = UDim2.new(0, 4, 0, 20)
+HistScroll.BackgroundTransparency = 1
+HistScroll.ScrollBarThickness = 3
+HistScroll.ScrollBarImageColor3 = Color3.fromRGB(90, 90, 180)
+HistScroll.CanvasSize = UDim2.new(0,0,0,0)
+HistScroll.Parent = HistFrame
+
+local HistLayout = Instance.new("UIListLayout")
+HistLayout.Padding = UDim.new(0, 1)
+HistLayout.SortOrder = Enum.SortOrder.LayoutOrder
+HistLayout.Parent = HistScroll
+
+-- ── Buttons ──
+local BtnRow = Instance.new("Frame")
+BtnRow.Size = UDim2.new(1, 0, 0, 40)
+BtnRow.Position = UDim2.new(0, 0, 0, 372)
+BtnRow.BackgroundTransparency = 1
+BtnRow.Parent = Content
+
+local function MakeBtn(name, txt, col, pos, sz)
+    local b = Instance.new("TextButton")
+    b.Name = name
+    b.Size = sz or UDim2.new(0, 110, 0, 38)
+    b.Position = pos
+    b.BackgroundColor3 = col
+    b.Text = txt
+    b.TextColor3 = Color3.fromRGB(255,255,255)
+    b.TextSize = 12
+    b.Font = Enum.Font.GothamBold
+    b.Parent = BtnRow
+    Corner(b, 8)
+    return b
+end
+
+local StartBtn    = MakeBtn("Start","▶ START",      Color3.fromRGB(40,125,40),  UDim2.new(0,0,0,0))
+local HintBtn     = MakeBtn("Hint","💡 HINT",       Color3.fromRGB(35,95,170),  UDim2.new(0,120,0,0))
+local SkipBtn     = MakeBtn("Skip","⏭ SKIP",        Color3.fromRGB(170,120,35), UDim2.new(0,240,0,0))
+local SettingBtn  = MakeBtn("Set","⚙ SETTING",      Color3.fromRGB(90,45,140),  UDim2.new(0,360,0,0))
+
+-- ── Settings Panel ──
+local SetPanel = Instance.new("Frame")
+SetPanel.Size = UDim2.new(1, 0, 0, 150)
+SetPanel.Position = UDim2.new(0, 0, 0, 418)
+SetPanel.BackgroundColor3 = Color3.fromRGB(22, 22, 50)
+SetPanel.BorderSizePixel = 0
+SetPanel.Visible = false
+SetPanel.Parent = Content
+Corner(SetPanel, 10)
+Stroke(SetPanel, Color3.fromRGB(75, 45, 170), 1)
+
+local SetTitle = Instance.new("TextLabel")
+SetTitle.Size = UDim2.new(1, 0, 0, 22)
+SetTitle.Position = UDim2.new(0, 0, 0, 3)
+SetTitle.BackgroundTransparency = 1
+SetTitle.Text = "⚙️ PENGATURAN"
+SetTitle.TextColor3 = Color3.fromRGB(190, 170, 255)
+SetTitle.TextSize = 13
+SetTitle.Font = Enum.Font.GothamBold
+SetTitle.Parent = SetPanel
+
+-- Difficulty row
+local DiffRow = Instance.new("Frame")
+DiffRow.Size = UDim2.new(1, -16, 0, 30)
+DiffRow.Position = UDim2.new(0, 8, 0, 28)
+DiffRow.BackgroundTransparency = 1
+DiffRow.Parent = SetPanel
+
+local DiffLbl = Instance.new("TextLabel")
+DiffLbl.Size = UDim2.new(0, 65, 1, 0)
+DiffLbl.BackgroundTransparency = 1
+DiffLbl.Text = "Difficulty:"
+DiffLbl.TextColor3 = Color3.fromRGB(170,170,210)
+DiffLbl.TextSize = 11
+DiffLbl.Font = Enum.Font.GothamSemibold
+DiffLbl.TextXAlignment = Enum.TextXAlignment.Left
+DiffLbl.Parent = DiffRow
+
+local DiffCols = {
+    Easy = Color3.fromRGB(40,145,40),
+    Normal = Color3.fromRGB(40,95,190),
+    Hard = Color3.fromRGB(190,95,35),
+    Extreme = Color3.fromRGB(190,35,35)
+}
+local DiffBtns = {}
+for i, name in ipairs({"Easy","Normal","Hard","Extreme"}) do
+    local db = Instance.new("TextButton")
+    db.Size = UDim2.new(0, 80, 0, 26)
+    db.Position = UDim2.new(0, 65 + (i-1)*88, 0.5, -13)
+    db.BackgroundColor3 = DiffCols[name]
+    db.BackgroundTransparency = (name == "Normal") and 0 or 0.6
+    db.Text = name
+    db.TextColor3 = Color3.fromRGB(255,255,255)
+    db.TextSize = 11
+    db.Font = Enum.Font.GothamBold
+    db.Parent = DiffRow
+    Corner(db, 6)
+    DiffBtns[name] = db
+end
+
+-- Correction Mode toggle row
+local CMRow = Instance.new("Frame")
+CMRow.Size = UDim2.new(1, -16, 0, 30)
+CMRow.Position = UDim2.new(0, 8, 0, 62)
+CMRow.BackgroundTransparency = 1
+CMRow.Parent = SetPanel
+
+local CMRowLbl = Instance.new("TextLabel")
+CMRowLbl.Size = UDim2.new(0.55, 0, 1, 0)
+CMRowLbl.BackgroundTransparency = 1
+CMRowLbl.Text = "Correction Mode:"
+CMRowLbl.TextColor3 = Color3.fromRGB(170,170,210)
+CMRowLbl.TextSize = 11
+CMRowLbl.Font = Enum.Font.GothamSemibold
+CMRowLbl.TextXAlignment = Enum.TextXAlignment.Left
+CMRowLbl.Parent = CMRow
+
+local CMToggle = Instance.new("TextButton")
+CMToggle.Size = UDim2.new(0, 75, 0, 26)
+CMToggle.Position = UDim2.new(0.55, 8, 0.5, -13)
+CMToggle.BackgroundColor3 = Color3.fromRGB(40,145,40)
+CMToggle.Text = "ON ✅"
+CMToggle.TextColor3 = Color3.fromRGB(255,255,255)
+CMToggle.TextSize = 12
+CMToggle.Font = Enum.Font.GothamBold
+CMToggle.Parent = CMRow
+Corner(CMToggle, 6)
+
+-- Close settings
+local CloseSet = Instance.new("TextButton")
+CloseSet.Size = UDim2.new(1, -16, 0, 30)
+CloseSet.Position = UDim2.new(0, 8, 0, 100)
+CloseSet.BackgroundColor3 = Color3.fromRGB(75, 75, 110)
+CloseSet.Text = "✕ Tutup"
+CloseSet.TextColor3 = Color3.fromRGB(255,255,255)
+CloseSet.TextSize = 12
+CloseSet.Font = Enum.Font.GothamBold
+CloseSet.Parent = SetPanel
+Corner(CloseSet, 6)
+
+-- ── Bottom Stats ──
+local BotStats = Instance.new("Frame")
+BotStats.Size = UDim2.new(1, 0, 0, 44)
+BotStats.Position = UDim2.new(0, 0, 1, -48)
+BotStats.BackgroundColor3 = Color3.fromRGB(18, 18, 40)
+BotStats.BorderSizePixel = 0
+BotStats.Parent = Content
+Corner(BotStats, 8)
+Stroke(BotStats, Color3.fromRGB(45, 45, 110), 1)
+
+local function BStat(txt, pos)
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.new(0.33, 0, 0.5, 0)
+    l.Position = pos
+    l.BackgroundTransparency = 1
+    l.Text = txt
+    l.TextColor3 = Color3.fromRGB(150,150,200)
+    l.TextSize = 10
+    l.Font = Enum.Font.Gotham
+    l.Parent = BotStats
+    return l
+end
+
+local SAcc   = BStat("🎯 Akurasi: 100%",    UDim2.new(0,0,0,0))
+local SBest  = BStat("🏆 Best: 0",          UDim2.new(0.33,0,0,0))
+local SGames = BStat("🎮 Games: 0",         UDim2.new(0.66,0,0,0))
+local STotal = BStat("📝 Kata: 0",          UDim2.new(0,0,0.5,0))
+local SMCombo= BStat("🔥 MaxCombo: 0",      UDim2.new(0.33,0,0.5,0))
+local SMode  = BStat("✏️ Mode: Correction", UDim2.new(0.66,0,0.5,0))
+
+-- ── Game Over Overlay ──
+local GOPanel = Instance.new("Frame")
+GOPanel.Size = UDim2.new(1, 0, 1, 0)
+GOPanel.BackgroundColor3 = Color3.fromRGB(0,0,0)
+GOPanel.BackgroundTransparency = 0.35
+GOPanel.Visible = false
+GOPanel.ZIndex = 10
+GOPanel.Parent = Content
+Corner(GOPanel, 12)
+
+local GOBox = Instance.new("Frame")
+GOBox.Size = UDim2.new(0.85, 0, 0, 280)
+GOBox.Position = UDim2.new(0.075, 0, 0.5, -140)
+GOBox.BackgroundColor3 = Color3.fromRGB(22, 22, 55)
+GOBox.ZIndex = 11
+GOBox.Parent = GOPanel
+Corner(GOBox, 14)
+Stroke(GOBox, Color3.fromRGB(200, 50, 50), 2)
+
+local GOTitle = Instance.new("TextLabel")
+GOTitle.Size = UDim2.new(1, 0, 0, 45)
+GOTitle.BackgroundTransparency = 1
+GOTitle.Text = "💀 GAME OVER"
+GOTitle.TextColor3 = Color3.fromRGB(255, 80, 80)
+GOTitle.TextSize = 26
+GOTitle.Font = Enum.Font.GothamBold
+GOTitle.ZIndex = 12
+GOTitle.Parent = GOBox
+
+local GOStats = Instance.new("TextLabel")
+GOStats.Size = UDim2.new(1, -16, 0, 170)
+GOStats.Position = UDim2.new(0, 8, 0, 45)
+GOStats.BackgroundTransparency = 1
+GOStats.Text = ""
+GOStats.TextColor3 = Color3.fromRGB(200, 200, 255)
+GOStats.TextSize = 13
+GOStats.Font = Enum.Font.Gotham
+GOStats.TextWrapped = true
+GOStats.TextYAlignment = Enum.TextYAlignment.Top
+GOStats.ZIndex = 12
+GOStats.Parent = GOBox
+
+local GORestart = Instance.new("TextButton")
+GORestart.Size = UDim2.new(0.45, 0, 0, 36)
+GORestart.Position = UDim2.new(0.025, 0, 1, -48)
+GORestart.BackgroundColor3 = Color3.fromRGB(40, 140, 40)
+GORestart.Text = "🔄 Main Lagi"
+GORestart.TextColor3 = Color3.fromRGB(255,255,255)
+GORestart.TextSize = 13
+GORestart.Font = Enum.Font.GothamBold
+GORestart.ZIndex = 12
+GORestart.Parent = GOBox
+Corner(GORestart, 8)
+
+local GOClose = Instance.new("TextButton")
+GOClose.Size = UDim2.new(0.45, 0, 0, 36)
+GOClose.Position = UDim2.new(0.525, 0, 1, -48)
+GOClose.BackgroundColor3 = Color3.fromRGB(140, 40, 40)
+GOClose.Text = "✕ Tutup"
+GOClose.TextColor3 = Color3.fromRGB(255,255,255)
+GOClose.TextSize = 13
+GOClose.Font = Enum.Font.GothamBold
+GOClose.ZIndex = 12
+GOClose.Parent = GOBox
+Corner(GOClose, 8)
+
+-- ===================== GAME FUNCTIONS =====================
+
+local function Msg(text, col)
+    MsgLabel.Text = text
+    MsgLabel.TextColor3 = col or Color3.fromRGB(200, 200, 255)
+    Tw(MsgBox, {BackgroundColor3 = Color3.fromRGB(35, 35, 68)}, 0.1)
+    task.delay(0.12, function()
+        Tw(MsgBox, {BackgroundColor3 = Color3.fromRGB(22, 22, 48)}, 0.25)
+    end)
+end
+
+local function RefreshUI()
+    LScore.Text  = "⭐ " .. State.score
+    LCombo.Text  = "🔥 x" .. State.combo
+    LLives.Text  = "❤️ " .. State.lives
+    LHints.Text  = "💡 " .. State.hints
+
+    local acc = 100
+    if State.totalAttempts > 0 then
+        acc = math.floor(((State.totalAttempts - State.wrongCount) / State.totalAttempts) * 100)
+    end
+
+    SAcc.Text    = "🎯 Akurasi: " .. acc .. "%"
+    SBest.Text   = "🏆 Best: " .. State.bestScore
+    SGames.Text  = "🎮 Games: " .. State.gamesPlayed
+    STotal.Text  = "📝 Kata: " .. #State.wordsUsed
+    SMCombo.Text = "🔥 MaxCombo: " .. State.maxCombo
+    SMode.Text   = State.correctionMode and "✏️ Correction ON" or "❌ Correction OFF"
+
+    if State.correctionMode then
+        CMBar.BackgroundColor3 = Color3.fromRGB(28, 55, 28)
+        CMLabel.Text  = "✅ Correction Mode ON — Huruf awal benar = langsung diterima"
+        CMLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        CMBar.BackgroundColor3 = Color3.fromRGB(55, 28, 28)
+        CMLabel.Text  = "❌ Correction Mode OFF — Kata harus ada di kamus"
+        CMLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+end
+
+local histCount = 0
+local function AddHistory(word, who, ok)
+    histCount = histCount + 1
+    local e = Instance.new("TextLabel")
+    e.Size = UDim2.new(1, -4, 0, 16)
+    e.BackgroundTransparency = 1
+    e.LayoutOrder = histCount
+    e.TextSize = 11
+    e.Font = Enum.Font.Gotham
+    e.TextXAlignment = Enum.TextXAlignment.Left
+
+    if ok then
+        local icon = who == "player" and "👤" or "🤖"
+        e.Text = icon .. " " .. histCount .. ". " .. word
+        e.TextColor3 = who == "player" and Color3.fromRGB(100, 255, 150) or Color3.fromRGB(100, 180, 255)
+    else
+        e.Text = "❌ " .. word .. " (ditolak)"
+        e.TextColor3 = Color3.fromRGB(255, 100, 100)
+    end
+
+    e.Parent = HistScroll
+    HistScroll.CanvasSize = UDim2.new(0, 0, 0, histCount * 17)
+    HistScroll.CanvasPosition = Vector2.new(0, math.max(0, histCount * 17 - 60))
+end
+
+local function InDB(word)
+    local fl = string.sub(string.lower(word), 1, 1)
+    local list = WordDB[fl]
+    if not list then return false end
+    for _, w in ipairs(list) do
+        if string.lower(w) == string.lower(word) then return true end
+    end
+    return false
+end
+
+local function Used(word)
+    for _, w in ipairs(State.wordsUsed) do
+        if string.lower(w) == string.lower(word) then return true end
+    end
+    return false
+end
+
+local function LastChar(w)
+    return string.lower(string.sub(w, #w, #w))
+end
+
+local function FindWord(letter)
+    local list = WordDB[letter]
+    if not list then return nil end
+    local avail = {}
+    for _, w in ipairs(list) do
+        if not Used(w) then table.insert(avail, w) end
+    end
+    if #avail == 0 then return nil end
+    return avail[math.random(1, #avail)]
+end
+
+-- Timer
+local timerConn
+local function StopTimer()
+    State.timerOn = false
+    if timerConn then timerConn:Disconnect(); timerConn = nil end
+end
+
+local function GameOver(win)
+    StopTimer()
+    State.active = false
+    GOPanel.Visible = true
+
+    if win then
+        GOTitle.Text = "🎉 KAMU MENANG!"
+        GOTitle.TextColor3 = Color3.fromRGB(255, 215, 0)
+    else
+        GOTitle.Text = "💀 GAME OVER"
+        GOTitle.TextColor3 = Color3.fromRGB(255, 80, 80)
+    end
+
+    local acc = 100
+    if State.totalAttempts > 0 then
+        acc = math.floor(((State.totalAttempts - State.wrongCount) / State.totalAttempts) * 100)
+    end
+
+    GOStats.Text = string.format(
+        "📊 STATISTIK\n\n⭐ Skor: %d\n🏆 Best: %d\n📝 Kata: %d\n🔥 Max Combo: %d\n🎯 Akurasi: %d%%\n❌ Salah: %d\n🎮 Difficulty: %s",
+        State.score, State.bestScore, #State.wordsUsed,
+        State.maxCombo, acc, State.wrongCount, State.difficulty
+    )
+
+    StartBtn.Text = "▶ START"
+    StartBtn.BackgroundColor3 = Color3.fromRGB(40, 125, 40)
+    RefreshUI()
+end
+
+local function BotTurn()
+    task.wait(0.4 + math.random() * 0.4)
+    if not State.active then return end
+
+    local ll = LastChar(State.currentWord)
+    local bw = FindWord(ll)
+
+    if bw then
+        State.currentWord = bw
+        table.insert(State.wordsUsed, bw)
+        AddHistory(bw, "bot", true)
+
+        local nl = string.upper(LastChar(bw))
+        State.lastLetter = string.lower(nl)
+        BigWord.Text = string.upper(bw)
+        BigWord.TextColor3 = Color3.fromRGB(100, 180, 255)
+        ReqLabel.Text = "➡️ Kata berikutnya huruf: " .. nl
+
+        Msg("🤖 Bot: " .. bw .. " → Giliranmu! Huruf: " .. nl, Color3.fromRGB(100, 180, 255))
+
+        -- start timer
+        local set = DiffSettings[State.difficulty]
+        State.timeLeft = set.time
+        State.timerOn = true
+
+        if timerConn then timerConn:Disconnect() end
+        timerConn = RunService.Heartbeat:Connect(function(dt)
+            if not State.timerOn or not State.active or State.paused then return end
+            State.timeLeft = State.timeLeft - dt
+            local ratio = math.clamp(State.timeLeft / set.time, 0, 1)
+            TimerFill.Size = UDim2.new(ratio, -4, 1, -4)
+            TimerTxt.Text = "⏱️ " .. math.ceil(math.max(0, State.timeLeft)) .. "s"
+
+            if ratio > 0.5 then
+                TimerFill.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+            elseif ratio > 0.25 then
+                TimerFill.BackgroundColor3 = Color3.fromRGB(255, 200, 0)
+            else
+                TimerFill.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+            end
+
+            if State.timeLeft <= 0 then
+                StopTimer()
+                State.lives = State.lives - 1
+                State.combo = 0
+                State.wrongCount = State.wrongCount + 1
+                Msg("⏰ Waktu habis! Nyawa: " .. State.lives, Color3.fromRGB(255, 150, 50))
+                if State.lives <= 0 then
+                    GameOver(false)
+                else
+                    RefreshUI()
+                    BotTurn()
+                end
+            end
+        end)
+    else
+        Msg("🎉 Bot menyerah! Kamu MENANG! +50 poin!", Color3.fromRGB(255, 215, 0))
+        State.score = State.score + 50
+        if State.score > State.bestScore then State.bestScore = State.score end
+        GameOver(true)
+    end
+
+    RefreshUI()
+end
+
+-- ===================== PLAYER SUBMIT =====================
+local function Submit()
+    if not State.active then
+        Msg("⚠️ Tekan START dulu!", Color3.fromRGB(255, 200, 50))
+        return
+    end
+    if State.paused then
+        Msg("⏸️ Game sedang di-pause.", Color3.fromRGB(255, 200, 50))
+        return
+    end
+
+    local raw = InputBox.Text
+    InputBox.Text = ""
+    local word = string.lower(string.gsub(raw, "%s+", ""))
+
+    if word == "" then
+        Msg("⚠️ Ketik kata dulu!", Color3.fromRGB(255, 200, 50))
+        return
+    end
+
+    -- minimal 2 huruf
+    if #word < 2 then
+        Msg("⚠️ Kata minimal 2 huruf!", Color3.fromRGB(255, 200, 50))
+        return
+    end
+
+    State.totalAttempts = State.totalAttempts + 1
+    local req = State.lastLetter
+    local first = string.sub(word, 1, 1)
+
+    -- CEK 1: Huruf awal harus sesuai
+    if first ~= req then
+        State.wrongCount = State.wrongCount + 1
+        State.combo = 0
+        AddHistory(word, "player", false)
+
+        if State.correctionMode then
+            -- Di correction mode, tidak kurangi nyawa, hanya peringatan
+            Msg("❌ Harus dimulai huruf '" .. string.upper(req) .. "'! Coba lagi.", Color3.fromRGB(255, 100, 100))
+        else
+            State.lives = State.lives - 1
+            Msg("❌ Harus huruf '" .. string.upper(req) .. "'! Nyawa: " .. State.lives, Color3.fromRGB(255, 80, 80))
+            if State.lives <= 0 then GameOver(false); return end
+        end
+
+        RefreshUI()
+        return
+    end
+
+    -- CEK 2: Sudah dipakai?
+    if Used(word) then
+        State.wrongCount = State.wrongCount + 1
+        State.combo = 0
+        AddHistory(word, "player", false)
+
+        if State.correctionMode then
+            Msg("🔄 Kata '" .. word .. "' sudah dipakai! Coba kata lain.", Color3.fromRGB(255, 180, 50))
+        else
+            State.lives = State.lives - 1
+            Msg("🔄 Sudah dipakai! Nyawa: " .. State.lives, Color3.fromRGB(255, 180, 50))
+            if State.lives <= 0 then GameOver(false); return end
+        end
+
+        RefreshUI()
+        return
+    end
+
+    --[[
+        CEK 3: VALIDASI KATA
+        
+        CORRECTION MODE ON:
+          → Huruf awal sudah benar + belum dipakai = LANGSUNG DITERIMA
+          → Tidak perlu ada di database
+        
+        CORRECTION MODE OFF:
+          → Kata HARUS ada di database
+    ]]
+    if not State.correctionMode then
+        if not InDB(word) then
+            State.wrongCount = State.wrongCount + 1
+            State.combo = 0
+            State.lives = State.lives - 1
+            AddHistory(word, "player", false)
+            Msg("❓ Kata '" .. word .. "' tidak ada di kamus! Nyawa: " .. State.lives, Color3.fromRGB(255, 100, 50))
+            if State.lives <= 0 then GameOver(false); return end
+            RefreshUI()
+            return
+        end
+    end
+
+    -- ✅ DITERIMA!
+    StopTimer()
+
+    State.currentWord = word
+    table.insert(State.wordsUsed, word)
+    AddHistory(word, "player", true)
+
+    State.combo = State.combo + 1
+    if State.combo > State.maxCombo then State.maxCombo = State.combo end
+
+    local set = DiffSettings[State.difficulty]
+    local pts = math.floor((10 + #word * 2 + State.combo * 5 + math.floor(State.timeLeft)) * set.mult)
+    State.score = State.score + pts
+    if State.score > State.bestScore then State.bestScore = State.score end
+
+    BigWord.Text = string.upper(word)
+    BigWord.TextColor3 = Color3.fromRGB(100, 255, 150)
+
+    local inDB = InDB(word)
+    local tag = ""
+    if State.correctionMode and not inDB then
+        tag = " (accepted ✏️)"
+    end
+
+    local comboTxt = State.combo > 1 and (" | 🔥 COMBO x" .. State.combo) or ""
+    Msg("✅ +" .. pts .. " poin!" .. comboTxt .. tag, Color3.fromRGB(100, 255, 100))
+
+    -- Flash score
+    Tw(LScore, {TextSize = 20}, 0.1)
+    task.delay(0.15, function() Tw(LScore, {TextSize = 14}, 0.2) end)
+
+    RefreshUI()
+    BotTurn()
+end
+
+-- ===================== START GAME =====================
+local function StartGame()
+    State.active = true
+    State.score = 0
+    State.combo = 0
+    State.wordsUsed = {}
+    State.history = {}
+    State.wrongCount = 0
+    State.totalAttempts = 0
+    State.paused = false
+    State.gamesPlayed = State.gamesPlayed + 1
+
+    local set = DiffSettings[State.difficulty]
+    State.lives = set.lives
+    State.hints = set.hints
+
+    -- Clear history
+    histCount = 0
+    for _, c in ipairs(HistScroll:GetChildren()) do
+        if c:IsA("TextLabel") then c:Destroy() end
+    end
+    HistScroll.CanvasSize = UDim2.new(0,0,0,0)
+
+    GOPanel.Visible = false
+    SetPanel.Visible = false
+
+    -- Random starting word dari database
+    local keys = {}
+    for k in pairs(WordDB) do table.insert(keys, k) end
+    local rl = keys[math.random(1, #keys)]
+    local wl = WordDB[rl]
+    local sw = wl[math.random(1, #wl)]
+
+    State.currentWord = sw
+    table.insert(State.wordsUsed, sw)
+
+    local ll = LastChar(sw)
+    State.lastLetter = ll
+
+    BigWord.Text = string.upper(sw)
+    BigWord.TextColor3 = Color3.fromRGB(100, 180, 255)
+    ReqLabel.Text = "➡️ Kata berikutnya huruf: " .. string.upper(ll)
+
+    AddHistory(sw, "bot", true)
+    Msg("🎮 Game mulai! [" .. State.difficulty .. "] 🤖: " .. sw .. " → Huruf: " .. string.upper(ll), Color3.fromRGB(100, 255, 150))
+
+    StartBtn.Text = "⏸ PAUSE"
+    StartBtn.BackgroundColor3 = Color3.fromRGB(170, 120, 35)
+
+    -- Start timer
+    State.timeLeft = set.time
+    State.timerOn = true
+    if timerConn then timerConn:Disconnect() end
+    timerConn = RunService.Heartbeat:Connect(function(dt)
+        if not State.timerOn or not State.active or State.paused then return end
+        State.timeLeft = State.timeLeft - dt
+        local ratio = math.clamp(State.timeLeft / set.time, 0, 1)
+        TimerFill.Size = UDim2.new(ratio, -4, 1, -4)
+        TimerTxt.Text = "⏱️ " .. math.ceil(math.max(0, State.timeLeft)) .. "s"
+        if ratio > 0.5 then TimerFill.BackgroundColor3 = Color3.fromRGB(0,200,100)
+        elseif ratio > 0.25 then TimerFill.BackgroundColor3 = Color3.fromRGB(255,200,0)
+        else TimerFill.BackgroundColor3 = Color3.fromRGB(255,50,50) end
+        if State.timeLeft <= 0 then
+            StopTimer()
+            State.lives = State.lives - 1
+            State.combo = 0
+            State.wrongCount = State.wrongCount + 1
+            Msg("⏰ Waktu habis! Nyawa: " .. State.lives, Color3.fromRGB(255, 150, 50))
+            if State.lives <= 0 then GameOver(false)
+            else RefreshUI(); BotTurn() end
+        end
+    end)
+
+    RefreshUI()
+end
+
+-- ===================== HINT =====================
+local function UseHint()
+    if not State.active then Msg("⚠️ Mulai game dulu!", Color3.fromRGB(255,200,50)); return end
+    if State.hints <= 0 then Msg("💡 Hint habis!", Color3.fromRGB(255,150,50)); return end
+
+    local list = WordDB[State.lastLetter]
+    if not list then Msg("💡 Tidak ada hint.", Color3.fromRGB(255,150,50)); return end
+
+    local avail = {}
+    for _, w in ipairs(list) do
+        if not Used(w) then table.insert(avail, w) end
+    end
+    if #avail == 0 then Msg("💡 Tidak ada kata tersedia!", Color3.fromRGB(255,150,50)); return end
+
+    State.hints = State.hints - 1
+    local hw = avail[math.random(1, #avail)]
+    local half = math.ceil(#hw / 2)
+    local shown = string.sub(hw, 1, half) .. string.rep("_", #hw - half)
+
+    Msg("💡 Hint: " .. shown .. " (" .. #hw .. " huruf) | Sisa: " .. State.hints, Color3.fromRGB(100, 200, 255))
+    RefreshUI()
+end
+
+-- ===================== SKIP =====================
+local function Skip()
+    if not State.active then Msg("⚠️ Mulai game dulu!", Color3.fromRGB(255,200,50)); return end
+    StopTimer()
+    State.lives = State.lives - 1
+    State.combo = 0
+    State.score = math.max(0, State.score - 5)
+    Msg("⏭️ Skip! -5 poin, -1 nyawa. Sisa: " .. State.lives, Color3.fromRGB(255, 180, 50))
+    if State.lives <= 0 then GameOver(false); return end
+    RefreshUI()
+    BotTurn()
+end
+
+-- ===================== CONNECTIONS =====================
+
+SendBtn.MouseButton1Click:Connect(Submit)
+InputBox.FocusLost:Connect(function(enter) if enter then Submit() end end)
+
+StartBtn.MouseButton1Click:Connect(function()
+    if not State.active then
+        StartGame()
+    else
+        State.paused = not State.paused
+        if State.paused then
+            StartBtn.Text = "▶ RESUME"
+            StartBtn.BackgroundColor3 = Color3.fromRGB(40, 125, 40)
+            Msg("⏸️ Di-pause.", Color3.fromRGB(255, 200, 50))
+        else
+            StartBtn.Text = "⏸ PAUSE"
+            StartBtn.BackgroundColor3 = Color3.fromRGB(170, 120, 35)
+            Msg("▶️ Dilanjutkan!", Color3.fromRGB(100, 255, 150))
+        end
+    end
+end)
+
+HintBtn.MouseButton1Click:Connect(UseHint)
+SkipBtn.MouseButton1Click:Connect(Skip)
+
+SettingBtn.MouseButton1Click:Connect(function()
+    SetPanel.Visible = not SetPanel.Visible
+end)
+CloseSet.MouseButton1Click:Connect(function()
+    SetPanel.Visible = false
+end)
+
+for name, btn in pairs(DiffBtns) do
+    btn.MouseButton1Click:Connect(function()
+        if State.active then
+            Msg("⚠️ Stop game dulu untuk ganti difficulty!", Color3.fromRGB(255,200,50))
+            return
+        end
+        State.difficulty = name
+        for n, b in pairs(DiffBtns) do
+            b.BackgroundTransparency = (n == name) and 0 or 0.6
+        end
+        local s = DiffSettings[name]
+        Msg("⚙️ " .. name .. " | ⏱️" .. s.time .. "s | ❤️" .. s.lives .. " | 💡" .. s.hints, Color3.fromRGB(180,180,255))
+    end)
+end
+
+CMToggle.MouseButton1Click:Connect(function()
+    State.correctionMode = not State.correctionMode
+    if State.correctionMode then
+        CMToggle.Text = "ON ✅"
+        CMToggle.BackgroundColor3 = Color3.fromRGB(40, 145, 40)
+    else
+        CMToggle.Text = "OFF ❌"
+        CMToggle.BackgroundColor3 = Color3.fromRGB(145, 40, 40)
+    end
+    RefreshUI()
+end)
+
+GORestart.MouseButton1Click:Connect(function()
+    GOPanel.Visible = false
+    StartGame()
+end)
+GOClose.MouseButton1Click:Connect(function()
+    GOPanel.Visible = false
+end)
+
+XBtn.MouseButton1Click:Connect(function()
+    StopTimer()
+    Gui:Destroy()
+end)
+
+local minimized = false
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        Tw(Main, {Size = UDim2.new(0, 500, 0, 44)}, 0.3)
+        Content.Visible = false
+        MinBtn.Text = "▢"
+    else
+        Tw(Main, {Size = UDim2.new(0, 500, 0, 640)}, 0.3)
+        task.delay(0.1, function() Content.Visible = true end)
+        MinBtn.Text = "—"
+    end
+end)
+
+-- Drag
+local dragging, dragInput, dragStart, startPos
+TBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Main.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+TBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local d = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+    end
+end)
+
+-- Hover effects
+local function Hover(btn)
+    local orig = btn.BackgroundColor3
+    btn.MouseEnter:Connect(function()
+        Tw(btn, {BackgroundColor3 = Color3.new(
+            math.min(1, orig.R + 0.12),
+            math.min(1, orig.G + 0.12),
+            math.min(1, orig.B + 0.12)
+        )}, 0.12)
+    end)
+    btn.MouseLeave:Connect(function()
+        Tw(btn, {BackgroundColor3 = orig}, 0.12)
+    end)
+end
+for _, b in ipairs({SendBtn, StartBtn, HintBtn, SkipBtn, SettingBtn, XBtn, MinBtn, GORestart, GOClose, CMToggle, CloseSet}) do
+    Hover(b)
+end
+
+-- Init
+RefreshUI()
+print("✅ Sambung Kata loaded!")
+print("📋 Correction Mode = Huruf awal benar → langsung diterima")
