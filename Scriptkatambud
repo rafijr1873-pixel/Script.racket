@@ -1,0 +1,650 @@
+--[[
+    SAMBUNG KATA - Minimalis
+    Fitur: Correction Mode + Auto Play
+    Toggle GUI: Klik tombol kecil di kiri atas
+]]
+
+-- Cleanup
+if game.CoreGui:FindFirstChild("SKGUI") then
+    game.CoreGui:FindFirstChild("SKGUI"):Destroy()
+end
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local function Tw(obj, props, dur)
+    TweenService:Create(obj, TweenInfo.new(dur or 0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
+end
+
+local function Corner(p, r)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, r or 6)
+    c.Parent = p
+end
+
+local function Stroke(p, col, t)
+    local s = Instance.new("UIStroke")
+    s.Color = col or Color3.fromRGB(255,255,255)
+    s.Thickness = t or 1
+    s.Parent = p
+end
+
+-- Database
+local DB = {
+    a={"apel","angin","awan","air","api","alam","akar","anak","ayam","adil","awal","akhir","asli","acara","ahli","alat","aman","angkat","arah","arti","asap","atap","ayah","abadi","aksi","arif","awas"},
+    b={"buku","bulan","bumi","batu","burung","bunga","beras","berani","baik","besar","biru","bakso","bambu","bangsa","bantu","baru","basah","bebas","benar","berat","besok","bijak","bintang","bisa","boleh","buah","budaya","bulat","bosan"},
+    c={"cinta","cahaya","cepat","cuaca","cantik","cerdas","cerah","cerita","cari","cukup","cara","cermin","coklat","contoh","coba","cocok","cuci","cemas"},
+    d={"daun","desa","dalam","dunia","diam","dekat","deras","dingin","dua","danau","dari","datang","damai","dapat","dasar","darat","daya","debu","demi","depan","diri","doa","duduk","dulu","duri"},
+    e={"elang","emas","enak","embun","emosi","empat","energi","ekor","era","esok"},
+    f={"fakta","film","foto","fiksi","final","flora","fauna","fungsi","fokus"},
+    g={"gajah","gunung","gula","garam","gelap","gembira","gerak","gitar","guru","gadis","ganti","garis","gaya","gempa","gigi","goreng","gugur","guna","gurun"},
+    h={"hari","hujan","hutan","hijau","harum","hebat","hewan","hitam","habis","hadiah","halus","hampir","hangat","hanya","harap","harga","hasil","hati","haus","hemat","hidup","hilang","hitung","hormat","huruf"},
+    i={"ikan","indah","ilmu","ibu","inti","istana","ingin","ingat","isi","ikut","impian","intan","istri","irama","izin","ikhlas"},
+    j={"jalan","jeruk","jembatan","juara","jelas","jiwa","janji","jaga","jagung","jarak","jari","jasa","jatuh","jawab","jenis","jernih","jual","juga","jumpa","jujur"},
+    k={"kata","kucing","kecil","kuat","kabar","kali","kamar","kampung","kapan","karya","kasih","kayu","keluar","kembali","kenal","keren","kerja","kiri","kopi","kotak","kuda","kunci","kuning","kursi","kulit","kawan","kebun"},
+    l={"laut","langit","lampu","lebar","lembut","lama","lagu","lain","lambat","langkah","lantai","lapar","lari","lebah","lebih","lelah","lemah","lemon","lepas","lewat","lihat","lima","logam","lucu","luka","lulus","lupa","lurus","luas"},
+    m={"malam","matahari","merah","muda","mahal","main","makan","malas","malu","mandi","manis","masak","masih","mati","mau","mekar","mesin","milik","mimpi","minta","minum","mirip","mobil","mulia","mulai","murah","murid","musim","musik","mawar"},
+    n={"naga","nama","nasi","novel","negara","nenek","nilai","niat","nikmat","normal","nomor","nuansa","nuri","nyala","nyaman","nyata","nyawa","nyanyi","nyaris"},
+    o={"orang","obat","oleh","opera","ombak","omong","otak","olah"},
+    p={"pagi","pantai","panas","pintar","pelan","pohon","padi","paham","pakai","paling","pandai","panen","panjang","papan","pasar","pasir","pasti","pecah","pedas","penuh","perak","pergi","perlu","pesta","petir","pikir","pilih","pindah","pintu","polisi","puas","pulang","pulau","puncak","putih","putus","putra"},
+    r={"rumah","raja","rakyat","ringan","rasa","rekan","riang","rapi","ragam","rajin","rambut","rantai","rata","rendah","resmi","ribu","rindu","ruang","rugi","rukun","rumit","rupa","rusak"},
+    s={"satu","siang","sinar","suara","suka","sabar","salah","salam","sama","sampai","santai","sapi","sapu","sawah","sedih","segar","sehat","selalu","semua","senang","sendiri","seni","senyum","sepatu","siap","sibuk","simpan","sisi","sore","sudah","sulit","sungai","sunyi","surat","susah","susu"},
+    t={"teman","tanah","tangan","tinggi","takut","tali","tamu","tanda","tanpa","tanya","tari","tawa","tebal","tegas","telur","tenang","tengah","tepi","tepat","terang","terima","tetap","tidak","tidur","tiga","tinggal","tinta","titik","toko","tolong","tua","tugas","tukar","tulis","tumbuh","turun","tutup"},
+    u={"udara","ujian","ukir","ular","ulang","untuk","untung","upah","upaya","urus","usaha","utama","utara","utuh","unik","uang","ubah"},
+    v={"variasi","vokal","volume","visi","viral"},
+    w={"waktu","wangi","warna","wajar","wajah","wajib","warga","warung","wawasan","wujud","wilayah","wisata"},
+    y={"yakin","yang"},
+    z={"zaman","zona","zat"}
+}
+
+-- State
+local S = {
+    active = false,
+    word = "",
+    letter = "",
+    score = 0,
+    combo = 0,
+    used = {},
+    correction = true,
+    autoplay = false,
+}
+
+local autoConn = nil
+
+-- ===================== GUI =====================
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "SKGUI"
+Gui.ResetOnSpawn = false
+Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+Gui.Parent = game.CoreGui
+
+-- Toggle Button (selalu terlihat)
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0, 32, 0, 32)
+ToggleBtn.Position = UDim2.new(0, 10, 0.5, -16)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 130)
+ToggleBtn.Text = "🎮"
+ToggleBtn.TextSize = 16
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.TextColor3 = Color3.fromRGB(255,255,255)
+ToggleBtn.Parent = Gui
+Corner(ToggleBtn, 8)
+Stroke(ToggleBtn, Color3.fromRGB(100, 100, 220), 1)
+
+-- Main Panel
+local Panel = Instance.new("Frame")
+Panel.Size = UDim2.new(0, 280, 0, 310)
+Panel.Position = UDim2.new(0, 50, 0.5, -155)
+Panel.BackgroundColor3 = Color3.fromRGB(14, 14, 30)
+Panel.BorderSizePixel = 0
+Panel.Visible = false
+Panel.Parent = Gui
+Corner(Panel, 10)
+Stroke(Panel, Color3.fromRGB(65, 65, 170), 2)
+
+-- Title bar
+local TBar = Instance.new("Frame")
+TBar.Size = UDim2.new(1, 0, 0, 32)
+TBar.BackgroundColor3 = Color3.fromRGB(25, 25, 62)
+TBar.BorderSizePixel = 0
+TBar.Parent = Panel
+Corner(TBar, 10)
+
+local TBarFix = Instance.new("Frame")
+TBarFix.Size = UDim2.new(1, 0, 0, 10)
+TBarFix.Position = UDim2.new(0, 0, 1, -10)
+TBarFix.BackgroundColor3 = Color3.fromRGB(25, 25, 62)
+TBarFix.BorderSizePixel = 0
+TBarFix.Parent = TBar
+
+local TTitle = Instance.new("TextLabel")
+TTitle.Size = UDim2.new(1, -35, 1, 0)
+TTitle.Position = UDim2.new(0, 8, 0, 0)
+TTitle.BackgroundTransparency = 1
+TTitle.Text = "🎮 Sambung Kata"
+TTitle.TextColor3 = Color3.fromRGB(255,255,255)
+TTitle.TextSize = 13
+TTitle.Font = Enum.Font.GothamBold
+TTitle.TextXAlignment = Enum.TextXAlignment.Left
+TTitle.Parent = TBar
+
+local XBtn = Instance.new("TextButton")
+XBtn.Size = UDim2.new(0, 24, 0, 24)
+XBtn.Position = UDim2.new(1, -28, 0.5, -12)
+XBtn.BackgroundColor3 = Color3.fromRGB(200, 45, 45)
+XBtn.Text = "✕"
+XBtn.TextColor3 = Color3.fromRGB(255,255,255)
+XBtn.TextSize = 11
+XBtn.Font = Enum.Font.GothamBold
+XBtn.Parent = TBar
+Corner(XBtn, 6)
+
+-- Content
+local C = Instance.new("Frame")
+C.Size = UDim2.new(1, -12, 1, -38)
+C.Position = UDim2.new(0, 6, 0, 35)
+C.BackgroundTransparency = 1
+C.Parent = Panel
+
+-- Score bar
+local ScoreBar = Instance.new("Frame")
+ScoreBar.Size = UDim2.new(1, 0, 0, 24)
+ScoreBar.BackgroundColor3 = Color3.fromRGB(20, 20, 48)
+ScoreBar.BorderSizePixel = 0
+ScoreBar.Parent = C
+Corner(ScoreBar, 5)
+
+local ScoreLbl = Instance.new("TextLabel")
+ScoreLbl.Size = UDim2.new(0.5, 0, 1, 0)
+ScoreLbl.BackgroundTransparency = 1
+ScoreLbl.Text = "⭐ 0"
+ScoreLbl.TextColor3 = Color3.fromRGB(255, 215, 0)
+ScoreLbl.TextSize = 12
+ScoreLbl.Font = Enum.Font.GothamBold
+ScoreLbl.Parent = ScoreBar
+
+local ComboLbl = Instance.new("TextLabel")
+ComboLbl.Size = UDim2.new(0.5, 0, 1, 0)
+ComboLbl.Position = UDim2.new(0.5, 0, 0, 0)
+ComboLbl.BackgroundTransparency = 1
+ComboLbl.Text = "🔥 x0"
+ComboLbl.TextColor3 = Color3.fromRGB(255, 100, 50)
+ComboLbl.TextSize = 12
+ComboLbl.Font = Enum.Font.GothamBold
+ComboLbl.Parent = ScoreBar
+
+-- Word display
+local WBox = Instance.new("Frame")
+WBox.Size = UDim2.new(1, 0, 0, 50)
+WBox.Position = UDim2.new(0, 0, 0, 28)
+WBox.BackgroundColor3 = Color3.fromRGB(20, 20, 52)
+WBox.BorderSizePixel = 0
+WBox.Parent = C
+Corner(WBox, 7)
+Stroke(WBox, Color3.fromRGB(55, 45, 140), 1)
+
+local BigW = Instance.new("TextLabel")
+BigW.Size = UDim2.new(1, -8, 0, 28)
+BigW.Position = UDim2.new(0, 4, 0, 2)
+BigW.BackgroundTransparency = 1
+BigW.Text = "-"
+BigW.TextColor3 = Color3.fromRGB(255,255,255)
+BigW.TextSize = 20
+BigW.Font = Enum.Font.GothamBold
+BigW.Parent = WBox
+
+local ReqLbl = Instance.new("TextLabel")
+ReqLbl.Size = UDim2.new(1, -8, 0, 16)
+ReqLbl.Position = UDim2.new(0, 4, 1, -18)
+ReqLbl.BackgroundTransparency = 1
+ReqLbl.Text = "Tekan toggle untuk mulai"
+ReqLbl.TextColor3 = Color3.fromRGB(255, 200, 50)
+ReqLbl.TextSize = 10
+ReqLbl.Font = Enum.Font.GothamSemibold
+ReqLbl.TextXAlignment = Enum.TextXAlignment.Left
+ReqLbl.Parent = WBox
+
+-- Input row
+local IRow = Instance.new("Frame")
+IRow.Size = UDim2.new(1, 0, 0, 30)
+IRow.Position = UDim2.new(0, 0, 0, 82)
+IRow.BackgroundTransparency = 1
+IRow.Parent = C
+
+local IBox = Instance.new("TextBox")
+IBox.Size = UDim2.new(1, -60, 1, 0)
+IBox.BackgroundColor3 = Color3.fromRGB(28, 28, 62)
+IBox.Text = ""
+IBox.PlaceholderText = "Ketik kata..."
+IBox.PlaceholderColor3 = Color3.fromRGB(80, 80, 130)
+IBox.TextColor3 = Color3.fromRGB(255,255,255)
+IBox.TextSize = 13
+IBox.Font = Enum.Font.GothamSemibold
+IBox.ClearTextOnFocus = false
+IBox.Parent = IRow
+Corner(IBox, 6)
+Stroke(IBox, Color3.fromRGB(60, 60, 150), 1)
+
+local SendBtn = Instance.new("TextButton")
+SendBtn.Size = UDim2.new(0, 54, 1, 0)
+SendBtn.Position = UDim2.new(1, -54, 0, 0)
+SendBtn.BackgroundColor3 = Color3.fromRGB(38, 130, 38)
+SendBtn.Text = "GO"
+SendBtn.TextColor3 = Color3.fromRGB(255,255,255)
+SendBtn.TextSize = 12
+SendBtn.Font = Enum.Font.GothamBold
+SendBtn.Parent = IRow
+Corner(SendBtn, 6)
+
+-- Message
+local MsgLbl = Instance.new("TextLabel")
+MsgLbl.Size = UDim2.new(1, 0, 0, 28)
+MsgLbl.Position = UDim2.new(0, 0, 0, 116)
+MsgLbl.BackgroundColor3 = Color3.fromRGB(18, 18, 42)
+MsgLbl.Text = "  👋 Sambung kata dari huruf terakhir!"
+MsgLbl.TextColor3 = Color3.fromRGB(190, 190, 240)
+MsgLbl.TextSize = 10
+MsgLbl.Font = Enum.Font.Gotham
+MsgLbl.TextXAlignment = Enum.TextXAlignment.Left
+MsgLbl.TextWrapped = true
+MsgLbl.Parent = C
+Corner(MsgLbl, 5)
+
+-- History
+local HFrame = Instance.new("Frame")
+HFrame.Size = UDim2.new(1, 0, 0, 62)
+HFrame.Position = UDim2.new(0, 0, 0, 148)
+HFrame.BackgroundColor3 = Color3.fromRGB(16, 16, 36)
+HFrame.BorderSizePixel = 0
+HFrame.Parent = C
+Corner(HFrame, 6)
+Stroke(HFrame, Color3.fromRGB(40, 40, 100), 1)
+
+local HScroll = Instance.new("ScrollingFrame")
+HScroll.Size = UDim2.new(1, -4, 1, -2)
+HScroll.Position = UDim2.new(0, 2, 0, 1)
+HScroll.BackgroundTransparency = 1
+HScroll.ScrollBarThickness = 2
+HScroll.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 170)
+HScroll.CanvasSize = UDim2.new(0,0,0,0)
+HScroll.Parent = HFrame
+
+local HLayout = Instance.new("UIListLayout")
+HLayout.Padding = UDim.new(0, 1)
+HLayout.SortOrder = Enum.SortOrder.LayoutOrder
+HLayout.Parent = HScroll
+
+-- ── TOGGLES ──
+local function MakeToggle(txt, yPos, default, col)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 26)
+    row.Position = UDim2.new(0, 0, 0, yPos)
+    row.BackgroundTransparency = 1
+    row.Parent = C
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.65, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = txt
+    lbl.TextColor3 = Color3.fromRGB(180, 180, 220)
+    lbl.TextSize = 11
+    lbl.Font = Enum.Font.GothamSemibold
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = row
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.32, 0, 0, 22)
+    btn.Position = UDim2.new(0.66, 0, 0.5, -11)
+    btn.BackgroundColor3 = default and (col or Color3.fromRGB(38, 135, 38)) or Color3.fromRGB(60, 60, 80)
+    btn.Text = default and "ON" or "OFF"
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.TextSize = 11
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = row
+    Corner(btn, 5)
+
+    return btn
+end
+
+local CorrBtn = MakeToggle("✅ Correction Mode", 215, true, Color3.fromRGB(38, 135, 38))
+local AutoBtn = MakeToggle("🤖 Auto Play", 244, false)
+
+-- ===================== LOGIC =====================
+
+local hCount = 0
+
+local function Msg(text, col)
+    MsgLbl.Text = "  " .. text
+    MsgLbl.TextColor3 = col or Color3.fromRGB(190, 190, 240)
+end
+
+local function Refresh()
+    ScoreLbl.Text = "⭐ " .. S.score
+    ComboLbl.Text = "🔥 x" .. S.combo
+end
+
+local function AddHist(word, who, ok)
+    hCount = hCount + 1
+    local e = Instance.new("TextLabel")
+    e.Size = UDim2.new(1, -2, 0, 14)
+    e.BackgroundTransparency = 1
+    e.LayoutOrder = hCount
+    e.TextSize = 10
+    e.Font = Enum.Font.Gotham
+    e.TextXAlignment = Enum.TextXAlignment.Left
+    if ok then
+        local ic = who == "you" and "👤" or "🤖"
+        e.Text = " " .. ic .. " " .. word
+        e.TextColor3 = who == "you" and Color3.fromRGB(100, 255, 140) or Color3.fromRGB(100, 170, 255)
+    else
+        e.Text = " ❌ " .. word
+        e.TextColor3 = Color3.fromRGB(255, 90, 90)
+    end
+    e.Parent = HScroll
+    HScroll.CanvasSize = UDim2.new(0, 0, 0, hCount * 15)
+    HScroll.CanvasPosition = Vector2.new(0, math.max(0, hCount * 15 - 50))
+end
+
+local function InDB(w)
+    local fl = string.sub(w, 1, 1)
+    local list = DB[fl]
+    if not list then return false end
+    for _, v in ipairs(list) do
+        if v == w then return true end
+    end
+    return false
+end
+
+local function Used(w)
+    for _, v in ipairs(S.used) do
+        if v == w then return true end
+    end
+    return false
+end
+
+local function LastC(w)
+    return string.sub(w, #w, #w)
+end
+
+local function FindWord(letter)
+    local list = DB[letter]
+    if not list then return nil end
+    local a = {}
+    for _, w in ipairs(list) do
+        if not Used(w) then table.insert(a, w) end
+    end
+    if #a == 0 then return nil end
+    return a[math.random(1, #a)]
+end
+
+local function Reset()
+    S.active = true
+    S.score = 0
+    S.combo = 0
+    S.used = {}
+    hCount = 0
+    for _, c in ipairs(HScroll:GetChildren()) do
+        if c:IsA("TextLabel") then c:Destroy() end
+    end
+    HScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+    local keys = {}
+    for k in pairs(DB) do table.insert(keys, k) end
+    local rl = keys[math.random(1, #keys)]
+    local wl = DB[rl]
+    local sw = wl[math.random(1, #wl)]
+
+    S.word = sw
+    table.insert(S.used, sw)
+    S.letter = LastC(sw)
+
+    BigW.Text = string.upper(sw)
+    BigW.TextColor3 = Color3.fromRGB(100, 170, 255)
+    ReqLbl.Text = "➡️ Huruf berikut: " .. string.upper(S.letter)
+
+    AddHist(sw, "bot", true)
+    Msg("🎮 Mulai! Bot: " .. sw .. " → huruf: " .. string.upper(S.letter), Color3.fromRGB(100, 255, 140))
+    Refresh()
+end
+
+local function BotTurn()
+    if not S.active then return end
+    task.wait(0.3 + math.random() * 0.3)
+    if not S.active then return end
+
+    local ll = LastC(S.word)
+    local bw = FindWord(ll)
+
+    if bw then
+        S.word = bw
+        table.insert(S.used, bw)
+        S.letter = LastC(bw)
+
+        BigW.Text = string.upper(bw)
+        BigW.TextColor3 = Color3.fromRGB(100, 170, 255)
+        ReqLbl.Text = "➡️ Huruf berikut: " .. string.upper(S.letter)
+        AddHist(bw, "bot", true)
+        Msg("🤖 " .. bw .. " → huruf: " .. string.upper(S.letter), Color3.fromRGB(100, 170, 255))
+    else
+        Msg("🎉 Bot menyerah! Kamu menang! +50", Color3.fromRGB(255, 215, 0))
+        S.score = S.score + 50
+        S.active = false
+        task.delay(2, Reset)
+    end
+    Refresh()
+end
+
+local function Submit(override)
+    if not S.active then Reset(); return end
+
+    local raw = override or IBox.Text
+    IBox.Text = ""
+    local word = string.lower(string.gsub(raw, "%s+", ""))
+
+    if word == "" then return end
+    if #word < 2 then Msg("⚠️ Minimal 2 huruf!", Color3.fromRGB(255, 200, 50)); return end
+
+    local first = string.sub(word, 1, 1)
+    local req = S.letter
+
+    -- Cek huruf awal
+    if first ~= req then
+        S.combo = 0
+        AddHist(word, "you", false)
+        Msg("❌ Harus huruf '" .. string.upper(req) .. "'!", Color3.fromRGB(255, 90, 90))
+        Refresh()
+        return
+    end
+
+    -- Cek sudah dipakai
+    if Used(word) then
+        S.combo = 0
+        AddHist(word, "you", false)
+        Msg("🔄 '" .. word .. "' sudah dipakai!", Color3.fromRGB(255, 170, 50))
+        Refresh()
+        return
+    end
+
+    --[[
+        CORRECTION MODE:
+        ON  = huruf awal benar + belum dipakai = LANGSUNG DITERIMA
+              (tidak perlu ada di database)
+        OFF = kata HARUS ada di database
+    ]]
+    if not S.correction then
+        if not InDB(word) then
+            S.combo = 0
+            AddHist(word, "you", false)
+            Msg("❓ '" .. word .. "' tidak ada di kamus!", Color3.fromRGB(255, 100, 50))
+            Refresh()
+            return
+        end
+    end
+
+    -- DITERIMA
+    S.word = word
+    table.insert(S.used, word)
+    S.combo = S.combo + 1
+    local pts = 10 + #word * 2 + S.combo * 3
+    S.score = S.score + pts
+    S.letter = LastC(word)
+
+    BigW.Text = string.upper(word)
+    BigW.TextColor3 = Color3.fromRGB(100, 255, 140)
+    ReqLbl.Text = "➡️ Huruf berikut: " .. string.upper(S.letter)
+    AddHist(word, "you", true)
+
+    local indb = InDB(word)
+    local tag = (S.correction and not indb) and " ✏️" or ""
+    local ctxt = S.combo > 1 and (" 🔥x" .. S.combo) or ""
+    Msg("✅ +" .. pts .. ctxt .. tag, Color3.fromRGB(100, 255, 100))
+    Refresh()
+
+    BotTurn()
+end
+
+-- ===================== AUTO PLAY =====================
+local function StopAuto()
+    S.autoplay = false
+    if autoConn then autoConn:Disconnect(); autoConn = nil end
+    AutoBtn.Text = "OFF"
+    AutoBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+end
+
+local function StartAuto()
+    S.autoplay = true
+    AutoBtn.Text = "ON"
+    AutoBtn.BackgroundColor3 = Color3.fromRGB(38, 135, 38)
+
+    if not S.active then Reset() end
+
+    -- Auto play loop
+    if autoConn then autoConn:Disconnect() end
+
+    local cooldown = 0
+    autoConn = RunService.Heartbeat:Connect(function(dt)
+        if not S.autoplay or not S.active then return end
+
+        cooldown = cooldown + dt
+        if cooldown < 1.2 then return end
+        cooldown = 0
+
+        -- Cari kata otomatis
+        local req = S.letter
+
+        if S.correction then
+            -- Correction mode ON: prioritas dari DB, tapi bisa pakai kata apapun
+            local w = FindWord(req)
+            if w then
+                Submit(w)
+            else
+                -- Buat kata random yang dimulai huruf benar
+                local fake = req .. string.char(math.random(97, 122)) .. string.char(math.random(97, 122)) .. string.char(math.random(97, 122))
+                Submit(fake)
+            end
+        else
+            -- Correction OFF: harus dari DB
+            local w = FindWord(req)
+            if w then
+                Submit(w)
+            else
+                Msg("🤖 Auto: tidak ada kata tersedia!", Color3.fromRGB(255, 150, 50))
+                StopAuto()
+            end
+        end
+    end)
+end
+
+-- ===================== CONNECTIONS =====================
+
+SendBtn.MouseButton1Click:Connect(function() Submit() end)
+IBox.FocusLost:Connect(function(enter) if enter then Submit() end end)
+
+CorrBtn.MouseButton1Click:Connect(function()
+    S.correction = not S.correction
+    if S.correction then
+        CorrBtn.Text = "ON"
+        CorrBtn.BackgroundColor3 = Color3.fromRGB(38, 135, 38)
+        Msg("✅ Correction ON: huruf awal benar = diterima", Color3.fromRGB(100, 255, 100))
+    else
+        CorrBtn.Text = "OFF"
+        CorrBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+        Msg("❌ Correction OFF: harus ada di kamus", Color3.fromRGB(255, 100, 100))
+    end
+end)
+
+AutoBtn.MouseButton1Click:Connect(function()
+    if S.autoplay then
+        StopAuto()
+        Msg("🤖 Auto Play OFF", Color3.fromRGB(180, 180, 220))
+    else
+        StartAuto()
+        Msg("🤖 Auto Play ON - bermain otomatis!", Color3.fromRGB(100, 255, 140))
+    end
+end)
+
+-- Toggle GUI
+local panelOpen = false
+ToggleBtn.MouseButton1Click:Connect(function()
+    panelOpen = not panelOpen
+    Panel.Visible = panelOpen
+    if panelOpen then
+        Panel.Size = UDim2.new(0, 0, 0, 0)
+        Panel.Position = UDim2.new(0, 50, 0.5, 0)
+        Tw(Panel, {
+            Size = UDim2.new(0, 280, 0, 310),
+            Position = UDim2.new(0, 50, 0.5, -155)
+        }, 0.25)
+        if not S.active then Reset() end
+    end
+end)
+
+-- Close
+XBtn.MouseButton1Click:Connect(function()
+    panelOpen = false
+    StopAuto()
+    Tw(Panel, {
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0, 50, 0.5, 0)
+    }, 0.2)
+    task.delay(0.2, function() Panel.Visible = false end)
+end)
+
+-- Drag
+local dragging, dragInput, dragStart, startPos
+TBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Panel.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+TBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local d = input.Position - dragStart
+        Panel.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+    end
+end)
+
+-- Hover
+local function Hov(b)
+    local o = b.BackgroundColor3
+    b.MouseEnter:Connect(function()
+        Tw(b, {BackgroundColor3 = Color3.new(math.min(1,o.R+0.12), math.min(1,o.G+0.12), math.min(1,o.B+0.12))}, 0.1)
+    end)
+    b.MouseLeave:Connect(function()
+        Tw(b, {BackgroundColor3 = o}, 0.1)
+    end)
+end
+Hov(SendBtn) Hov(XBtn) Hov(ToggleBtn)
+
+print("✅ Sambung Kata loaded! Klik 🎮 di kiri layar.")
