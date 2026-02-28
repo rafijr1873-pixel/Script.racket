@@ -1,0 +1,1192 @@
+--[[
+    ╔══════════════════════════════════════════════╗
+    ║   SAMBUNG KATA v2.1                          ║
+    ║   Auto Play + Correction Mode (Auto Valid)   ║
+    ║   Executor: Solara/Fluxus/Delta/etc          ║
+    ╚══════════════════════════════════════════════╝
+    
+    Correction Mode:
+    → Kata yang kamu sebut tapi TIDAK ADA di database
+    → Otomatis DITAMBAHKAN ke database
+    → Jadi valid dan bisa dipakai untuk sambung kata
+]]
+
+-------------------------------------------------
+-- SERVICES
+-------------------------------------------------
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TextChatService  = game:GetService("TextChatService")
+local StarterGui       = game:GetService("StarterGui")
+local TweenService     = game:GetService("TweenService")
+
+local player    = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-------------------------------------------------
+-- KONFIGURASI
+-------------------------------------------------
+local CONFIG = {
+    AutoPlayDelay    = 1.5,
+    MinWordLength    = 2,
+    ToggleKey        = Enum.KeyCode.RightControl,
+    MatchMode        = "huruf",     -- "huruf" / "suku"
+    ResponsePrefix   = "",
+}
+
+-------------------------------------------------
+-- DATABASE KATA INDONESIA
+-------------------------------------------------
+local wordDatabase = {
+    a = {
+        "awan","angin","api","air","alam","akar","asap","ayam","anak","atap",
+        "awal","akhir","abadi","acara","adik","agama","ahli","ajaib","akan",
+        "alas","album","almari","ambil","ampun","ancam","andai","angka","antar",
+        "apel","arah","arus","asam","asin","asli","atas","atau","awas","ayah",
+        "absen","acuan","adegan","adopsi","agung","akal","akrab","alarm","alat",
+        "aman","amino","angkat","antik","april","arena","arif","arsip","asuh",
+        "atlas","atom","awet","azab","aksi","aktif","alami","aliran","ambar",
+        "andal","aneka","angsa","apung","armada","aspal","astaga","audit","aula",
+    },
+    b = {
+        "batu","bulan","bumi","bunga","burung","biru","besar","buku","baik",
+        "bakso","bantal","barang","batas","bayar","beban","bedak","belum","benar",
+        "benci","bentuk","beras","berat","beri","berita","berkas","besok","biasa",
+        "bijak","binar","bintang","bisa","bisik","bocor","boleh","bonus","buah",
+        "budak","bulat","bumbu","bungkus","buruk","busuk","butir","buyar","baja",
+        "bakti","bambu","bangun","baris","batik","bawah","bayam","becak","bedah",
+        "begitu","bekal","belanja","bengkel","berahi","berkat","betul","bibit",
+        "bidang","bimbing","biola","bosan","boyong","bubar","budaya","bukti",
+    },
+    c = {
+        "cahaya","cantik","cari","cat","cepat","cerah","cerita","cinta","coklat",
+        "cuaca","cukup","curi","cacat","cadang","cagar","cairan","cakap","cakar",
+        "cakram","cambuk","campur","candu","cangkir","capai","catat","cawan",
+        "celana","celup","cemas","cemara","cendol","cengkeh","cerai","cermat",
+        "cermin","cetakan","cicak","ciduk","cikal","cimol","cincin","ciprat",
+        "ciri","cita","cobek","cocok","condong","contoh","copot","corak",
+        "coreng","cucian","cubit","cukur","culik","cuma","curah","cuti",
+    },
+    d = {
+        "daun","desa","dalam","darah","dari","datar","dekat","demi","dengan",
+        "depan","deras","diam","dinding","dingin","dokter","dolar","domba","dosa",
+        "dua","dunia","duri","dahulu","dakwa","damai","dampak","danau","dapat",
+        "darat","darurat","dasar","dawai","debar","debu","denda","dengar",
+        "dentum","derma","desak","desain","detail","dewan","dialog","didik",
+        "dinas","diploma","diskon","dongeng","dorong","dosen","dosis","drama",
+        "duduk","duga","dukun","dulang","duren","dusta","duyung",
+    },
+    e = {
+        "embun","emas","enak","energi","elang","ekor","ember","emosi","empat",
+        "engkau","entah","era","esok","etika","evaluasi","evolusi","ejaan",
+        "ekonomi","ekspor","ekstra","elastis","elemen","elok","emban","empuk",
+        "endap","enggan","enteng","episode","erosi","esa","esai","etnis",
+        "euforia","eksis","ekuator","eliminasi","emigran",
+    },
+    f = {
+        "foto","fajar","fakta","famili","fantasi","fase","favorit","filem",
+        "final","flora","fokus","formal","formulir","forum","fosil","fragmen",
+        "fungsi","fabel","fabrik","faktur","fana","fasilitas","fenomena",
+        "festival","figur","filsafat","firma","fisik","flamingo","fobia",
+        "fondasi","format","frekuensi","frontal","fundamental","fusi","futsal",
+        "fakultas",
+    },
+    g = {
+        "gajah","garam","garis","gaya","gelap","gempa","gitar","gunung","guru",
+        "gagal","galak","galeri","gambar","ganda","ganjil","garpu","gawang",
+        "gedung","gelar","gelombang","gema","gemuk","genap","gendang","gerak",
+        "getah","gigih","gilir","gizi","global","goreng","gosip","gratis","gua",
+        "gubuk","gugur","gulai","guna","gunting","gurita","gurih","gusar",
+        "gabung","gadis","gaduh","gaib",
+    },
+    h = {
+        "hari","harga","hati","harap","hasil","hewan","hijau","hitung","hujan",
+        "hutan","habis","hadap","hadiah","hafal","hajat","halal","halang","halus",
+        "hamil","hampir","hancur","handal","hangat","hapus","haram","harum",
+        "hebat","hemat","hendak","henti","herbal","hias","hibur","hidung",
+        "hikayat","hilang","himpun","hingga","hirup","hitam","hobi","hormat",
+        "hotel","hubung","hukum","humor","huruf","hutang",
+    },
+    i = {
+        "ikan","ibu","indah","intan","istana","ikut","ilmu","imbang","impian",
+        "inap","industri","informasi","ingat","injak","insaf","inspirasi",
+        "instrumen","intai","inti","irama","iring","irigasi","ironi","isi",
+        "isolasi","istilah","istirahat","isyarat","iuran","izin","ibadah",
+        "ibarat","idam","ide","identik","idola","ijazah","ikat","iklim","iklan",
+        "ilusi","imajinasi","imbas","imigran","imun","incar",
+    },
+    j = {
+        "jalan","jari","jauh","jeruk","jiwa","jual","juga","jujur","jumlah",
+        "jabat","jadwal","jaga","jagung","jahat","jahit","jajak","jaksa","jalur",
+        "jambu","jamin","jamur","jangka","janji","jarak","jaring","jasad",
+        "jatah","jatuh","jawab","jelas","jemput","jendela","jenuh","jepit",
+        "jernih","jilid","jinak","jinjing","jitu","joget","jubah","judul","jumpa",
+    },
+    k = {
+        "kata","kayu","kecil","kerja","kota","kursi","kucing","kunci","kuat",
+        "kabar","kabel","kabur","kacang","kadar","kado","kagum","kail","kain",
+        "kakak","kalah","kaleng","kalung","kamar","kambing","kampung","kamus",
+        "kanan","kandung","kantor","kapan","kapal","kapas","karena","karir",
+        "kartu","karya","kasih","kasur","katak","kawan","kawin","kebun","kedai",
+        "kelam","kelapa","keluarga","kembang","kemeja","kenang","kendali","keras",
+        "kerang","kereta","kertas","ketua","kijang","kilat","kimia","kincir",
+        "kipas","kira","kirim","kisah","klasik","klinik","kode","koin","kolam",
+        "komik","kompas","konflik","kontak","kopi","korek","korban","kotak",
+        "kuasa","kuda","kukuh","kuliah","kulit","kumis","kumpul","kuning",
+        "kunjung","kupas","kurang","kurma","kusut",
+    },
+    l = {
+        "laut","langit","lama","lampu","lapar","lebar","lemah","lidah","lihat",
+        "lima","lintas","lucu","luka","lurus","laba","ladang","lagu","lahar",
+        "lahan","lain","laki","lalat","lambat","lancar","landas","langka",
+        "lantai","lapis","larut","latih","lauk","lawan","layak","layang","layar",
+        "lazim","lebah","lebat","ledak","lekat","lemari","lembab","lembut",
+        "lengan","lepas","lereng","letak","lewat","lilin","limpah","lindung",
+        "lingkar","lipat","logam","logis","lokal","lompat","longgar","lorong",
+        "loteng","loyal","luang","lubang","lugu","luhur","lukis","lumpur",
+        "luncur","luntur","luput","lutut",
+    },
+    m = {
+        "makan","malam","mandi","manis","masak","meja","merah","minta","mobil",
+        "murah","murid","musik","maaf","macam","mahal","mahir","main","maju",
+        "makna","malah","malas","mampir","mandiri","mangga","mantan","mantap",
+        "mapan","marah","marga","masuk","mata","matang","mawar","mayat","medan",
+        "megah","mekar","melati","memang","menang","merak","merdu","mesra",
+        "milik","mimpi","minyak","mirip","miskin","modal","mogok","mohon",
+        "momen","moral","motif","muat","muda","mudah","mulia","mulut","muncul",
+        "mundur","murni","musim","mustahil","mutu","mungkin",
+    },
+    n = {
+        "nama","nasi","naik","nilai","nyata","nyaman","nanti","napas","nakal",
+        "nalar","nanas","nangka","naskah","nasib","negara","nekad","nelayan",
+        "neraka","netral","nikah","nikmat","nisan","noda","nomor","nonton",
+        "norma","nota","novel","nuansa","nuri","nyala","nyamuk","nyaris","nyawa",
+        "nyeri","nadi","nafkah","nahkoda",
+    },
+    o = {
+        "orang","obat","oleh","omong","opini","ombak","otot","obor","obral",
+        "odol","ogah","oknum","olah","olahraga","ongkos","operasi","optimal",
+        "orbit","organ","orisinal","ornamen","otak","otomatis","otoritas",
+        "oval","oven","objek","observasi","obsesi",
+    },
+    p = {
+        "panas","pasir","pintu","pohon","pulau","putih","pagi","pajak","pakai",
+        "paket","paksa","paku","paling","palu","paman","pameran","panah",
+        "pancing","pandai","pandang","panen","panjang","pantas","papan","parah",
+        "parkir","partai","pasang","pasar","pasti","patah","patuh","patung",
+        "payung","pecah","pedas","pedih","pegang","pekat","pelan","peluk",
+        "penuh","perahu","perak","perang","pergi","pesan","petir","piala",
+        "pijak","pikir","pilih","pimpin","pindah","pintar","piring","pisang",
+        "pisau","pokok","polisi","pondok","potong","pria","prima","prinsip",
+        "produk","proses","puas","pucuk","pudar","pukul","puncak","punya",
+        "pusat","putar","putra","putus",
+    },
+    q = {"qari","quran"},
+    r = {
+        "raja","rakyat","rumah","rasa","ringan","ruang","racun","radar","ragam",
+        "ragu","rahasia","rahim","rahmat","rajin","raksasa","ramah","ramai",
+        "rambut","rampas","rancang","rangka","rantai","rapat","rapuh","rata",
+        "ratus","rawan","rawat","rayap","reaksi","rebus","reda","redup","regu",
+        "rekan","rekam","relawan","remaja","rempah","rendah","renung","resah",
+        "resmi","respon","restu","rezeki","riang","ribu","rimba","rinci","rindu",
+        "risau","riset","risiko","ritual","rival","rokok","roman","rombak",
+        "ronda","rongga","rubah","rugi","rujuk","rukun","rumit","rumpun",
+        "runtuh","rupiah","rusak","rusuk",
+    },
+    s = {
+        "satu","sabar","saat","sadar","sains","sakit","salam","salju","samar",
+        "sama","sampai","sana","sandal","sandi","sangat","santai","sapi","saran",
+        "sarang","saring","sawah","sayap","sayur","sebab","sedap","sedia","sedih",
+        "segar","segera","sejak","sejuk","sekat","selam","selatan","seluruh",
+        "semak","semangat","semen","sempat","sempit","senang","seni","senja",
+        "sepak","sepatu","serasi","serbuk","serbu","seri","serius","serta",
+        "sesak","setia","siap","sifat","sikap","silau","sinar","singgah","sisi",
+        "sisir","soal","sobat","sokong","sopan","sorak","stabil","studi",
+        "suaka","suara","subur","sudah","suhu","sujud","sukses","sulap","sulit",
+        "sultan","sumber","sumpah","sungai","sungguh","suntik","supaya","surat",
+        "surga","suruh","susah","susun","sutera","syarat","syukur",
+    },
+    t = {
+        "tanah","tangan","teman","tidak","tiga","tulis","taman","tambah",
+        "tampak","tampil","tanda","tanduk","tangga","tangkap","tanya","tapak",
+        "tari","tarik","taruh","tata","tebal","tebang","teduh","tegak","teguh",
+        "tekad","tekun","teladan","teliti","telur","tembok","tembak","tempat",
+        "tenaga","tenang","tengah","tepat","tepi","terang","terbang","terjun",
+        "ternak","terus","tetap","tiang","tidur","tikam","tiket","tikus",
+        "timbal","timbul","timpa","tindak","tinggi","tinggal","tinjau","tirai",
+        "titik","tolong","tombak","tongkat","topan","topeng","total","tradisi",
+        "tropis","tuai","tuan","tubuh","tugu","tujuan","tukang","tulang",
+        "tulus","tumbuh","tumpah","tumpuk","tunai","tunduk","tunggu","tunjuk",
+        "tupai","turun","tusuk","tutup",
+    },
+    u = {
+        "udara","ujian","ulang","umpan","untuk","upah","usaha","utama","utuh",
+        "uang","ubah","ubin","ucap","udang","ujung","ukir","ukuran","ulat",
+        "ular","undang","undur","unggas","ungkap","unik","unjuk","untung",
+        "upacara","urai","urban","urus","usai","usik","usir","usul","utara",
+    },
+    v = {
+        "variasi","vaksin","valid","vanili","vas","ventilasi","versi","veto",
+        "video","viral","visi","visual","vital","vitamin","vokal","volume",
+        "vakum","veteran","viola","virus","visa","vonis",
+    },
+    w = {
+        "waktu","wajah","wajib","wangi","warga","warna","wasit","wajar",
+        "wacana","wadah","wahyu","wakil","walau","wali","wanita","warisan",
+        "waras","wartawan","waspada","wawasan","wayang","wilayah","wisata",
+        "wisuda","wujud","warung","wahana",
+    },
+    x = {"xenon","xilofon"},
+    y = {"yakin","yang","yatim","yayasan"},
+    z = {"zaman","zat","zona","zodiak","ziarah","zina","zirah","zaitun"},
+}
+
+-------------------------------------------------
+-- STATE
+-------------------------------------------------
+local State = {
+    autoPlayEnabled    = false,
+    correctionEnabled  = false,
+    usedWords          = {},
+    lastWord           = "",
+    isProcessing       = false,
+    totalAnswered      = 0,
+    totalCorrected     = 0,  -- jumlah kata yg di-auto validasi
+    currentStreak      = 0,
+    bestStreak         = 0,
+}
+
+-------------------------------------------------
+-- UTILITY
+-------------------------------------------------
+local function cleanWord(word)
+    if not word then return "" end
+    word = string.lower(word)
+    word = word:gsub("[^a-z]", "")
+    return word
+end
+
+local function getLastChar(word)
+    word = cleanWord(word)
+    if #word == 0 then return "" end
+    return string.sub(word, -1)
+end
+
+local function getLastTwoChars(word)
+    word = cleanWord(word)
+    if #word < 2 then return getLastChar(word) end
+    return string.sub(word, -2)
+end
+
+local function getMatchKey(word)
+    if CONFIG.MatchMode == "suku" then
+        return getLastTwoChars(word)
+    end
+    return getLastChar(word)
+end
+
+local function getFirstChar(word)
+    word = cleanWord(word)
+    if #word == 0 then return "" end
+    return string.sub(word, 1, 1)
+end
+
+-- Cek apakah kata ada di database
+local function isWordInDatabase(word)
+    word = cleanWord(word)
+    if #word < CONFIG.MinWordLength then return false end
+    local firstChar = getFirstChar(word)
+    local list = wordDatabase[firstChar]
+    if not list then return false end
+    for _, w in ipairs(list) do
+        if cleanWord(w) == word then
+            return true
+        end
+    end
+    return false
+end
+
+-- ═══════════════════════════════════════════════
+-- CORRECTION MODE: Tambah kata baru ke database
+-- ═══════════════════════════════════════════════
+local function addWordToDatabase(word)
+    word = cleanWord(word)
+    if #word < CONFIG.MinWordLength then return false end
+    if isWordInDatabase(word) then return false end -- sudah ada
+
+    local firstChar = getFirstChar(word)
+
+    -- Buat list baru kalau belum ada huruf itu
+    if not wordDatabase[firstChar] then
+        wordDatabase[firstChar] = {}
+    end
+
+    -- Tambahkan kata ke database
+    table.insert(wordDatabase[firstChar], word)
+    State.totalCorrected = State.totalCorrected + 1
+
+    return true
+end
+
+-- Cek kata sudah dipakai belum
+local function isWordUsed(word)
+    return State.usedWords[cleanWord(word)] ~= nil
+end
+
+local function markWordUsed(word)
+    State.usedWords[cleanWord(word)] = true
+end
+
+-- Cari kata jawaban
+local function findResponseWord(lastWord)
+    local matchChar = getLastChar(lastWord)
+    if #matchChar == 0 then return nil end
+
+    local candidates = wordDatabase[matchChar]
+    if not candidates then return nil end
+
+    local validList = {}
+    for _, word in ipairs(candidates) do
+        local clean = cleanWord(word)
+        if not isWordUsed(clean) and #clean >= CONFIG.MinWordLength then
+            if CONFIG.MatchMode == "suku" then
+                local matchKey = getLastTwoChars(lastWord)
+                if string.sub(clean, 1, 2) == matchKey then
+                    table.insert(validList, clean)
+                end
+            else
+                table.insert(validList, clean)
+            end
+        end
+    end
+
+    -- Fallback: kalau mode suku gagal, pakai huruf biasa
+    if #validList == 0 and CONFIG.MatchMode == "suku" then
+        for _, word in ipairs(candidates) do
+            local clean = cleanWord(word)
+            if not isWordUsed(clean) and #clean >= CONFIG.MinWordLength then
+                table.insert(validList, clean)
+            end
+        end
+    end
+
+    if #validList == 0 then return nil end
+    return validList[math.random(1, #validList)]
+end
+
+local function resetUsedWords()
+    State.usedWords = {}
+    State.currentStreak = 0
+end
+
+-------------------------------------------------
+-- CHAT FUNCTIONS
+-------------------------------------------------
+local function sendChat(message)
+    local msg = CONFIG.ResponsePrefix .. message
+
+    -- TextChatService (Modern Roblox)
+    local ok1 = pcall(function()
+        local channels = TextChatService:FindFirstChild("TextChannels")
+        if channels then
+            local general = channels:FindFirstChild("RBXGeneral")
+            if general then
+                general:SendAsync(msg)
+            end
+        end
+    end)
+    if ok1 then return end
+
+    -- Legacy Chat
+    pcall(function()
+        local chatEvents = game:GetService("ReplicatedStorage")
+            :FindFirstChild("DefaultChatSystemChatEvents")
+        if chatEvents then
+            local say = chatEvents:FindFirstChild("SayMessageRequest")
+            if say then
+                say:FireServer(msg, "All")
+            end
+        end
+    end)
+end
+
+local function notify(title, text, dur)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title,
+            Text = text,
+            Duration = dur or 3,
+        })
+    end)
+end
+
+-------------------------------------------------
+-- GUI
+-------------------------------------------------
+local function createGUI()
+    -- Hapus lama
+    local old = playerGui:FindFirstChild("SambungKataGUI")
+    if old then old:Destroy() end
+
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "SambungKataGUI"
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ScreenGui.Parent = playerGui
+
+    pcall(function()
+        if syn and syn.protect_gui then syn.protect_gui(ScreenGui)
+        elseif gethui then ScreenGui.Parent = gethui() end
+    end)
+
+    -- =============== MAIN FRAME ===============
+    local Main = Instance.new("Frame")
+    Main.Name = "Main"
+    Main.Size = UDim2.new(0, 330, 0, 470)
+    Main.Position = UDim2.new(0.5, -165, 0.5, -235)
+    Main.BackgroundColor3 = Color3.fromRGB(12, 12, 22)
+    Main.BorderSizePixel = 0
+    Main.Active = true
+    Main.Draggable = true
+    Main.Parent = ScreenGui
+
+    Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 14)
+
+    local stroke = Instance.new("UIStroke", Main)
+    stroke.Color = Color3.fromRGB(70, 110, 255)
+    stroke.Thickness = 2
+    stroke.Transparency = 0.4
+
+    -- =============== TITLE BAR ===============
+    local TitleBar = Instance.new("Frame")
+    TitleBar.Size = UDim2.new(1, 0, 0, 52)
+    TitleBar.BackgroundColor3 = Color3.fromRGB(20, 20, 40)
+    TitleBar.BorderSizePixel = 0
+    TitleBar.Parent = Main
+    Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 14)
+
+    -- Bottom fix agar corner bawah title lurus
+    local fix = Instance.new("Frame", TitleBar)
+    fix.Size = UDim2.new(1, 0, 0, 14)
+    fix.Position = UDim2.new(0, 0, 1, -14)
+    fix.BackgroundColor3 = Color3.fromRGB(20, 20, 40)
+    fix.BorderSizePixel = 0
+
+    local titleText = Instance.new("TextLabel", TitleBar)
+    titleText.Size = UDim2.new(1, -90, 0, 30)
+    titleText.Position = UDim2.new(0, 14, 0, 4)
+    titleText.BackgroundTransparency = 1
+    titleText.Text = "🔤 SAMBUNG KATA"
+    titleText.TextColor3 = Color3.fromRGB(100, 170, 255)
+    titleText.TextSize = 17
+    titleText.Font = Enum.Font.GothamBlack
+    titleText.TextXAlignment = Enum.TextXAlignment.Left
+
+    local subText = Instance.new("TextLabel", TitleBar)
+    subText.Size = UDim2.new(1, -90, 0, 16)
+    subText.Position = UDim2.new(0, 14, 0, 32)
+    subText.BackgroundTransparency = 1
+    subText.Text = "Auto Play + Correction (Auto Validasi)"
+    subText.TextColor3 = Color3.fromRGB(130, 130, 170)
+    subText.TextSize = 10
+    subText.Font = Enum.Font.Gotham
+    subText.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- Close & Minimize
+    local function makeHeaderBtn(text, color, posX)
+        local btn = Instance.new("TextButton", TitleBar)
+        btn.Size = UDim2.new(0, 28, 0, 28)
+        btn.Position = UDim2.new(1, posX, 0, 12)
+        btn.BackgroundColor3 = color
+        btn.Text = text
+        btn.TextColor3 = Color3.new(1, 1, 1)
+        btn.TextSize = 13
+        btn.Font = Enum.Font.GothamBold
+        btn.BorderSizePixel = 0
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 7)
+        return btn
+    end
+
+    local closeBtn = makeHeaderBtn("✕", Color3.fromRGB(255, 55, 55), -38)
+    local minBtn   = makeHeaderBtn("—", Color3.fromRGB(255, 180, 0), -72)
+
+    -- =============== CONTENT ===============
+    local Content = Instance.new("ScrollingFrame")
+    Content.Name = "Content"
+    Content.Size = UDim2.new(1, -20, 1, -62)
+    Content.Position = UDim2.new(0, 10, 0, 57)
+    Content.BackgroundTransparency = 1
+    Content.BorderSizePixel = 0
+    Content.ScrollBarThickness = 3
+    Content.ScrollBarImageColor3 = Color3.fromRGB(80, 120, 255)
+    Content.CanvasSize = UDim2.new(0, 0, 0, 520)
+    Content.Parent = Main
+
+    local layout = Instance.new("UIListLayout", Content)
+    layout.Padding = UDim.new(0, 8)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    -- ====== STATUS BOX ======
+    local StatusBox = Instance.new("Frame", Content)
+    StatusBox.Name = "StatusBox"
+    StatusBox.Size = UDim2.new(1, 0, 0, 65)
+    StatusBox.BackgroundColor3 = Color3.fromRGB(18, 18, 35)
+    StatusBox.BorderSizePixel = 0
+    StatusBox.LayoutOrder = 0
+    Instance.new("UICorner", StatusBox).CornerRadius = UDim.new(0, 10)
+
+    local statusLine1 = Instance.new("TextLabel", StatusBox)
+    statusLine1.Name = "Line1"
+    statusLine1.Size = UDim2.new(1, -16, 0, 22)
+    statusLine1.Position = UDim2.new(0, 8, 0, 6)
+    statusLine1.BackgroundTransparency = 1
+    statusLine1.Text = "⏸️  Menunggu..."
+    statusLine1.TextColor3 = Color3.fromRGB(255, 200, 80)
+    statusLine1.TextSize = 13
+    statusLine1.Font = Enum.Font.GothamSemibold
+    statusLine1.TextXAlignment = Enum.TextXAlignment.Left
+
+    local statusLine2 = Instance.new("TextLabel", StatusBox)
+    statusLine2.Name = "Line2"
+    statusLine2.Size = UDim2.new(1, -16, 0, 18)
+    statusLine2.Position = UDim2.new(0, 8, 0, 28)
+    statusLine2.BackgroundTransparency = 1
+    statusLine2.Text = "📊 Jawab: 0 | Validasi: 0 | Streak: 0"
+    statusLine2.TextColor3 = Color3.fromRGB(130, 130, 165)
+    statusLine2.TextSize = 10
+    statusLine2.Font = Enum.Font.Gotham
+    statusLine2.TextXAlignment = Enum.TextXAlignment.Left
+
+    local statusLine3 = Instance.new("TextLabel", StatusBox)
+    statusLine3.Name = "Line3"
+    statusLine3.Size = UDim2.new(1, -16, 0, 16)
+    statusLine3.Position = UDim2.new(0, 8, 0, 46)
+    statusLine3.BackgroundTransparency = 1
+    statusLine3.Text = "📖 Database: " .. tostring(#{}) .. " kata"
+    statusLine3.TextColor3 = Color3.fromRGB(100, 100, 140)
+    statusLine3.TextSize = 9
+    statusLine3.Font = Enum.Font.Gotham
+    statusLine3.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- Hitung total kata
+    local function countDatabase()
+        local total = 0
+        for _, list in pairs(wordDatabase) do
+            total = total + #list
+        end
+        return total
+    end
+
+    local function updateStats()
+        statusLine2.Text = string.format(
+            "📊 Jawab: %d | Validasi: %d | Streak: %d (Best: %d)",
+            State.totalAnswered, State.totalCorrected,
+            State.currentStreak, State.bestStreak
+        )
+        statusLine3.Text = "📖 Database: " .. tostring(countDatabase()) .. " kata"
+    end
+
+    statusLine3.Text = "📖 Database: " .. tostring(countDatabase()) .. " kata"
+
+    -- ====== TOGGLE HELPER ======
+    local function makeToggle(labelText, icon, default, order, callback)
+        local frame = Instance.new("Frame", Content)
+        frame.Size = UDim2.new(1, 0, 0, 48)
+        frame.BackgroundColor3 = Color3.fromRGB(22, 22, 42)
+        frame.BorderSizePixel = 0
+        frame.LayoutOrder = order
+        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+
+        local ico = Instance.new("TextLabel", frame)
+        ico.Size = UDim2.new(0, 36, 1, 0)
+        ico.Position = UDim2.new(0, 6, 0, 0)
+        ico.BackgroundTransparency = 1
+        ico.Text = icon
+        ico.TextSize = 20
+        ico.Font = Enum.Font.GothamBold
+        ico.TextColor3 = Color3.new(1, 1, 1)
+
+        local lbl = Instance.new("TextLabel", frame)
+        lbl.Size = UDim2.new(1, -115, 1, 0)
+        lbl.Position = UDim2.new(0, 42, 0, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = labelText
+        lbl.TextColor3 = Color3.fromRGB(210, 210, 230)
+        lbl.TextSize = 13
+        lbl.Font = Enum.Font.GothamSemibold
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        -- Switch track
+        local track = Instance.new("Frame", frame)
+        track.Size = UDim2.new(0, 52, 0, 28)
+        track.Position = UDim2.new(1, -62, 0.5, -14)
+        track.BackgroundColor3 = default and Color3.fromRGB(0, 210, 100) or Color3.fromRGB(70, 70, 95)
+        track.BorderSizePixel = 0
+        Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
+
+        local knob = Instance.new("Frame", track)
+        knob.Size = UDim2.new(0, 22, 0, 22)
+        knob.Position = default and UDim2.new(1, -25, 0.5, -11) or UDim2.new(0, 3, 0.5, -11)
+        knob.BackgroundColor3 = Color3.new(1, 1, 1)
+        knob.BorderSizePixel = 0
+        Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+
+        local isOn = default
+        local clickArea = Instance.new("TextButton", frame)
+        clickArea.Size = UDim2.new(1, 0, 1, 0)
+        clickArea.BackgroundTransparency = 1
+        clickArea.Text = ""
+
+        clickArea.MouseButton1Click:Connect(function()
+            isOn = not isOn
+            TweenService:Create(knob, TweenInfo.new(0.2), {
+                Position = isOn and UDim2.new(1, -25, 0.5, -11) or UDim2.new(0, 3, 0.5, -11)
+            }):Play()
+            TweenService:Create(track, TweenInfo.new(0.2), {
+                BackgroundColor3 = isOn and Color3.fromRGB(0, 210, 100) or Color3.fromRGB(70, 70, 95)
+            }):Play()
+            callback(isOn)
+        end)
+
+        return frame
+    end
+
+    -- ====== TOGGLE: AUTO PLAY ======
+    makeToggle("Auto Play", "🤖", false, 1, function(on)
+        State.autoPlayEnabled = on
+        statusLine1.Text = on and "🟢  Auto Play AKTIF" or "⏸️  Auto Play NONAKTIF"
+        statusLine1.TextColor3 = on and Color3.fromRGB(0, 255, 130) or Color3.fromRGB(255, 200, 80)
+        notify("Sambung Kata", on and "Auto Play AKTIF!" or "Auto Play NONAKTIF!", 2)
+    end)
+
+    -- ====== TOGGLE: CORRECTION MODE ======
+    makeToggle("Correction Mode", "✅", false, 2, function(on)
+        State.correctionEnabled = on
+        notify("Correction Mode",
+            on and "AKTIF - Kata tidak dikenal otomatis ditambahkan ke database!"
+               or "NONAKTIF", 3)
+    end)
+
+    -- ====== CORRECTION INFO BOX ======
+    local infoBox = Instance.new("Frame", Content)
+    infoBox.Size = UDim2.new(1, 0, 0, 50)
+    infoBox.BackgroundColor3 = Color3.fromRGB(15, 30, 20)
+    infoBox.BorderSizePixel = 0
+    infoBox.LayoutOrder = 3
+    Instance.new("UICorner", infoBox).CornerRadius = UDim.new(0, 8)
+
+    local infoStroke = Instance.new("UIStroke", infoBox)
+    infoStroke.Color = Color3.fromRGB(0, 180, 80)
+    infoStroke.Thickness = 1
+    infoStroke.Transparency = 0.6
+
+    local infoText = Instance.new("TextLabel", infoBox)
+    infoText.Size = UDim2.new(1, -16, 1, 0)
+    infoText.Position = UDim2.new(0, 8, 0, 0)
+    infoText.BackgroundTransparency = 1
+    infoText.Text = "✅ Correction Mode: Kalau kamu sebut kata\nyang TIDAK ADA di database → otomatis DITAMBAHKAN\ndan langsung jadi valid untuk sambung kata!"
+    infoText.TextColor3 = Color3.fromRGB(80, 220, 120)
+    infoText.TextSize = 9
+    infoText.Font = Enum.Font.Gotham
+    infoText.TextXAlignment = Enum.TextXAlignment.Left
+    infoText.TextWrapped = true
+
+    -- ====== MODE SELECTOR ======
+    local modeFrame = Instance.new("Frame", Content)
+    modeFrame.Size = UDim2.new(1, 0, 0, 42)
+    modeFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 42)
+    modeFrame.BorderSizePixel = 0
+    modeFrame.LayoutOrder = 4
+    Instance.new("UICorner", modeFrame).CornerRadius = UDim.new(0, 10)
+
+    local modeLbl = Instance.new("TextLabel", modeFrame)
+    modeLbl.Size = UDim2.new(0.55, 0, 1, 0)
+    modeLbl.Position = UDim2.new(0, 10, 0, 0)
+    modeLbl.BackgroundTransparency = 1
+    modeLbl.Text = "🔗 Mode: Huruf Terakhir"
+    modeLbl.TextColor3 = Color3.fromRGB(200, 200, 225)
+    modeLbl.TextSize = 11
+    modeLbl.Font = Enum.Font.GothamSemibold
+    modeLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local modeBtn = Instance.new("TextButton", modeFrame)
+    modeBtn.Size = UDim2.new(0.38, 0, 0, 28)
+    modeBtn.Position = UDim2.new(0.58, 0, 0.5, -14)
+    modeBtn.BackgroundColor3 = Color3.fromRGB(70, 110, 255)
+    modeBtn.Text = "Ganti Mode"
+    modeBtn.TextColor3 = Color3.new(1, 1, 1)
+    modeBtn.TextSize = 11
+    modeBtn.Font = Enum.Font.GothamBold
+    modeBtn.BorderSizePixel = 0
+    Instance.new("UICorner", modeBtn).CornerRadius = UDim.new(0, 7)
+
+    modeBtn.MouseButton1Click:Connect(function()
+        if CONFIG.MatchMode == "huruf" then
+            CONFIG.MatchMode = "suku"
+            modeLbl.Text = "🔗 Mode: 2 Huruf Terakhir"
+        else
+            CONFIG.MatchMode = "huruf"
+            modeLbl.Text = "🔗 Mode: Huruf Terakhir"
+        end
+    end)
+
+    -- ====== MANUAL INPUT ======
+    local inputFrame = Instance.new("Frame", Content)
+    inputFrame.Size = UDim2.new(1, 0, 0, 44)
+    inputFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 42)
+    inputFrame.BorderSizePixel = 0
+    inputFrame.LayoutOrder = 5
+    Instance.new("UICorner", inputFrame).CornerRadius = UDim.new(0, 10)
+
+    local inputBox = Instance.new("TextBox", inputFrame)
+    inputBox.Size = UDim2.new(0.58, -8, 0, 30)
+    inputBox.Position = UDim2.new(0, 8, 0.5, -15)
+    inputBox.BackgroundColor3 = Color3.fromRGB(32, 32, 55)
+    inputBox.Text = ""
+    inputBox.PlaceholderText = "Ketik kata terakhir..."
+    inputBox.PlaceholderColor3 = Color3.fromRGB(90, 90, 120)
+    inputBox.TextColor3 = Color3.new(1, 1, 1)
+    inputBox.TextSize = 12
+    inputBox.Font = Enum.Font.Gotham
+    inputBox.BorderSizePixel = 0
+    inputBox.ClearTextOnFocus = true
+    Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 7)
+
+    local findBtn = Instance.new("TextButton", inputFrame)
+    findBtn.Size = UDim2.new(0.38, 0, 0, 30)
+    findBtn.Position = UDim2.new(0.6, 0, 0.5, -15)
+    findBtn.BackgroundColor3 = Color3.fromRGB(0, 180, 100)
+    findBtn.Text = "🔍 Cari Jawaban"
+    findBtn.TextColor3 = Color3.new(1, 1, 1)
+    findBtn.TextSize = 11
+    findBtn.Font = Enum.Font.GothamBold
+    findBtn.BorderSizePixel = 0
+    Instance.new("UICorner", findBtn).CornerRadius = UDim.new(0, 7)
+
+    findBtn.MouseButton1Click:Connect(function()
+        local word = cleanWord(inputBox.Text)
+        if #word == 0 then return end
+        local resp = findResponseWord(word)
+        if resp then
+            statusLine1.Text = "💡 Jawaban: " .. string.upper(resp)
+            statusLine1.TextColor3 = Color3.fromRGB(0, 255, 180)
+            notify("Jawaban Ditemukan", resp, 3)
+        else
+            statusLine1.Text = "❌ Tidak ada kata untuk '" .. getLastChar(word) .. "...'"
+            statusLine1.TextColor3 = Color3.fromRGB(255, 80, 80)
+        end
+    end)
+
+    -- ====== DELAY CONTROL ======
+    local delayFrame = Instance.new("Frame", Content)
+    delayFrame.Size = UDim2.new(1, 0, 0, 38)
+    delayFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 42)
+    delayFrame.BorderSizePixel = 0
+    delayFrame.LayoutOrder = 6
+    Instance.new("UICorner", delayFrame).CornerRadius = UDim.new(0, 10)
+
+    local delayLbl = Instance.new("TextLabel", delayFrame)
+    delayLbl.Size = UDim2.new(0.6, 0, 1, 0)
+    delayLbl.Position = UDim2.new(0, 10, 0, 0)
+    delayLbl.BackgroundTransparency = 1
+    delayLbl.Text = string.format("⏱️ Delay: %.1fs", CONFIG.AutoPlayDelay)
+    delayLbl.TextColor3 = Color3.fromRGB(200, 200, 225)
+    delayLbl.TextSize = 12
+    delayLbl.Font = Enum.Font.GothamSemibold
+    delayLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local function makeSmallBtn(text, color, posX)
+        local b = Instance.new("TextButton", delayFrame)
+        b.Size = UDim2.new(0, 30, 0, 26)
+        b.Position = UDim2.new(1, posX, 0.5, -13)
+        b.BackgroundColor3 = color
+        b.Text = text
+        b.TextColor3 = Color3.new(1, 1, 1)
+        b.TextSize = 16
+        b.Font = Enum.Font.GothamBold
+        b.BorderSizePixel = 0
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 7)
+        return b
+    end
+
+    local minusBtn = makeSmallBtn("-", Color3.fromRGB(255, 70, 70), -72)
+    local plusBtn  = makeSmallBtn("+", Color3.fromRGB(0, 200, 100), -36)
+
+    minusBtn.MouseButton1Click:Connect(function()
+        CONFIG.AutoPlayDelay = math.max(0.3, CONFIG.AutoPlayDelay - 0.3)
+        delayLbl.Text = string.format("⏱️ Delay: %.1fs", CONFIG.AutoPlayDelay)
+    end)
+    plusBtn.MouseButton1Click:Connect(function()
+        CONFIG.AutoPlayDelay = math.min(10, CONFIG.AutoPlayDelay + 0.3)
+        delayLbl.Text = string.format("⏱️ Delay: %.1fs", CONFIG.AutoPlayDelay)
+    end)
+
+    -- ====== ACTION BUTTONS ======
+    local function makeActionBtn(text, color, order, cb)
+        local b = Instance.new("TextButton", Content)
+        b.Size = UDim2.new(1, 0, 0, 38)
+        b.BackgroundColor3 = color
+        b.Text = text
+        b.TextColor3 = Color3.new(1, 1, 1)
+        b.TextSize = 12
+        b.Font = Enum.Font.GothamBold
+        b.BorderSizePixel = 0
+        b.LayoutOrder = order
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
+        b.MouseButton1Click:Connect(function()
+            TweenService:Create(b, TweenInfo.new(0.08), {
+                BackgroundColor3 = Color3.fromRGB(
+                    math.min(255, color.R * 255 + 40),
+                    math.min(255, color.G * 255 + 40),
+                    math.min(255, color.B * 255 + 40)
+                )
+            }):Play()
+            task.wait(0.08)
+            TweenService:Create(b, TweenInfo.new(0.08), {BackgroundColor3 = color}):Play()
+            cb()
+        end)
+        return b
+    end
+
+    makeActionBtn("🔄  Reset Kata Terpakai", Color3.fromRGB(180, 110, 0), 7, function()
+        resetUsedWords()
+        State.totalAnswered = 0
+        State.totalCorrected = 0
+        updateStats()
+        notify("Reset", "Semua kata terpakai direset!", 2)
+    end)
+
+    makeActionBtn("💬  Test Kirim Chat", Color3.fromRGB(70, 110, 255), 8, function()
+        sendChat("test sambung kata")
+        notify("Test", "Pesan test dikirim ke chat!", 2)
+    end)
+
+    makeActionBtn("📋  Lihat Kata Tervalidasi", Color3.fromRGB(120, 50, 200), 9, function()
+        -- Tampilkan kata-kata yang ditambahkan via correction
+        local added = {}
+        for _, list in pairs(wordDatabase) do
+            -- kata terakhir yang ditambah (sederhana: tampilkan jumlah)
+        end
+        notify("Database Info", "Total kata: " .. countDatabase() .. "\nKata divalidasi sesi ini: " .. State.totalCorrected, 4)
+    end)
+
+    -- ====== LAST VALIDATED WORD DISPLAY ======
+    local lastValidBox = Instance.new("Frame", Content)
+    lastValidBox.Name = "LastValidBox"
+    lastValidBox.Size = UDim2.new(1, 0, 0, 35)
+    lastValidBox.BackgroundColor3 = Color3.fromRGB(18, 25, 18)
+    lastValidBox.BorderSizePixel = 0
+    lastValidBox.LayoutOrder = 10
+    Instance.new("UICorner", lastValidBox).CornerRadius = UDim.new(0, 8)
+
+    local lastValidLabel = Instance.new("TextLabel", lastValidBox)
+    lastValidLabel.Name = "LastValid"
+    lastValidLabel.Size = UDim2.new(1, -16, 1, 0)
+    lastValidLabel.Position = UDim2.new(0, 8, 0, 0)
+    lastValidLabel.BackgroundTransparency = 1
+    lastValidLabel.Text = "✅ Terakhir divalidasi: -"
+    lastValidLabel.TextColor3 = Color3.fromRGB(80, 200, 100)
+    lastValidLabel.TextSize = 10
+    lastValidLabel.Font = Enum.Font.GothamSemibold
+    lastValidLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- ====== CREDIT ======
+    local credit = Instance.new("TextLabel", Content)
+    credit.Size = UDim2.new(1, 0, 0, 16)
+    credit.BackgroundTransparency = 1
+    credit.Text = "Sambung Kata v2.1 | RCtrl toggle | Correction = Auto Validasi"
+    credit.TextColor3 = Color3.fromRGB(60, 60, 85)
+    credit.TextSize = 8
+    credit.Font = Enum.Font.Gotham
+    credit.LayoutOrder = 99
+
+    -- =============== CLOSE / MINIMIZE ===============
+    closeBtn.MouseButton1Click:Connect(function()
+        ScreenGui:Destroy()
+        State.autoPlayEnabled = false
+        State.correctionEnabled = false
+    end)
+
+    local minimized = false
+    minBtn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quart), {
+            Size = minimized and UDim2.new(0, 330, 0, 52) or UDim2.new(0, 330, 0, 470)
+        }):Play()
+        Content.Visible = not minimized
+    end)
+
+    -- =============== RETURN ===============
+    return {
+        ScreenGui      = ScreenGui,
+        Main           = Main,
+        StatusLine1    = statusLine1,
+        StatusLine2    = statusLine2,
+        StatusLine3    = statusLine3,
+        LastValidLabel = lastValidLabel,
+        UpdateStats    = updateStats,
+        CountDatabase  = countDatabase,
+    }
+end
+
+-------------------------------------------------
+-- PROSES KATA MASUK (INTI LOGIC)
+-------------------------------------------------
+local function processIncomingWord(word, senderName, gui)
+    word = cleanWord(word)
+    if #word < CONFIG.MinWordLength then return end
+
+    -- ══════════════════════════════════════════
+    -- CORRECTION MODE: Auto validasi kata baru
+    -- ══════════════════════════════════════════
+    if State.correctionEnabled then
+        if not isWordInDatabase(word) then
+            -- KATA TIDAK ADA DI DATABASE → TAMBAHKAN!
+            local added = addWordToDatabase(word)
+            if added then
+                gui.LastValidLabel.Text = "✅ Baru divalidasi: \"" .. word .. "\" → ditambah ke huruf [" .. getFirstChar(word) .. "]"
+                gui.LastValidLabel.TextColor3 = Color3.fromRGB(0, 255, 120)
+
+                -- Flash notification
+                notify(
+                    "✅ Kata Divalidasi!",
+                    '"' .. word .. '" tidak ada di database.\nOtomatis DITAMBAHKAN! Sekarang valid.',
+                    4
+                )
+
+                -- Update status
+                gui.StatusLine1.Text = "✅ VALIDATED: \"" .. string.upper(word) .. "\" → Database Updated!"
+                gui.StatusLine1.TextColor3 = Color3.fromRGB(0, 255, 130)
+
+                print("[CORRECTION] Kata '" .. word .. "' ditambahkan ke database!")
+            end
+        end
+    end
+
+    -- Tandai kata sudah dipakai
+    State.lastWord = word
+    markWordUsed(word)
+
+    -- ═══════════════════════════
+    -- AUTO PLAY: Cari & jawab
+    -- ═══════════════════════════
+    if State.autoPlayEnabled and not State.isProcessing then
+        State.isProcessing = true
+
+        task.spawn(function()
+            task.wait(CONFIG.AutoPlayDelay)
+
+            local response = findResponseWord(word)
+            if response then
+                sendChat(response)
+                markWordUsed(response)
+                State.lastWord = response
+                State.totalAnswered = State.totalAnswered + 1
+                State.currentStreak = State.currentStreak + 1
+                if State.currentStreak > State.bestStreak then
+                    State.bestStreak = State.currentStreak
+                end
+
+                gui.StatusLine1.Text = "🤖 Dijawab: " .. string.upper(response)
+                gui.StatusLine1.TextColor3 = Color3.fromRGB(0, 255, 150)
+            else
+                gui.StatusLine1.Text = "😞 Tidak ada kata untuk '" .. getLastChar(word) .. "...' (tambah lewat correction!)"
+                gui.StatusLine1.TextColor3 = Color3.fromRGB(255, 120, 80)
+                State.currentStreak = 0
+            end
+
+            gui.UpdateStats()
+            State.isProcessing = false
+        end)
+    else
+        gui.UpdateStats()
+    end
+end
+
+-------------------------------------------------
+-- CHAT MONITOR
+-------------------------------------------------
+local function setupChatMonitor(gui)
+    -- Legacy Chat System
+    pcall(function()
+        local chatEvents = game:GetService("ReplicatedStorage")
+            :FindFirstChild("DefaultChatSystemChatEvents")
+        if chatEvents then
+            local onMsg = chatEvents:FindFirstChild("OnMessageDoneFiltering")
+            if onMsg then
+                onMsg.OnClientEvent:Connect(function(data)
+                    if not data or not data.Message then return end
+                    local sender = data.FromSpeaker or ""
+                    local msg = data.Message
+
+                    -- Proses SEMUA pesan (termasuk sendiri untuk correction)
+                    -- Tapi auto play hanya respond ke orang lain
+                    local word = cleanWord(msg)
+
+                    if sender == player.Name then
+                        -- Pesan sendiri: hanya proses correction
+                        if State.correctionEnabled and #word >= CONFIG.MinWordLength then
+                            if not isWordInDatabase(word) then
+                                local added = addWordToDatabase(word)
+                                if added then
+                                    gui.LastValidLabel.Text = "✅ Divalidasi: \"" .. word .. "\" [kamu]"
+                                    notify("✅ Auto Validasi",
+                                        '"' .. word .. '" ditambahkan ke database!', 3)
+                                    gui.UpdateStats()
+                                    print("[CORRECTION] '" .. word .. "' ditambahkan!")
+                                end
+                            end
+                            markWordUsed(word)
+                            State.lastWord = word
+                        end
+                    else
+                        -- Pesan orang lain: proses correction + auto play
+                        processIncomingWord(msg, sender, gui)
+                    end
+                end)
+            end
+        end
+    end)
+
+    -- Modern TextChatService
+    pcall(function()
+        TextChatService.MessageReceived:Connect(function(chatMsg)
+            local msg = chatMsg.Text
+            local source = chatMsg.TextSource
+
+            if source and source.UserId == player.UserId then
+                -- Pesan sendiri: correction only
+                local word = cleanWord(msg)
+                if State.correctionEnabled and #word >= CONFIG.MinWordLength then
+                    if not isWordInDatabase(word) then
+                        local added = addWordToDatabase(word)
+                        if added then
+                            gui.LastValidLabel.Text = "✅ Divalidasi: \"" .. word .. "\" [kamu]"
+                            notify("✅ Auto Validasi",
+                                '"' .. word .. '" ditambahkan ke database!', 3)
+                            gui.UpdateStats()
+                        end
+                    end
+                    markWordUsed(word)
+                    State.lastWord = word
+                end
+            else
+                -- Pesan orang lain
+                local senderName = source and source.Name or "Unknown"
+                processIncomingWord(msg, senderName, gui)
+            end
+        end)
+    end)
+end
+
+-------------------------------------------------
+-- REMOTE EVENT SCANNER
+-------------------------------------------------
+local function setupRemoteScanner(gui)
+    pcall(function()
+        for _, remote in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do
+            if remote:IsA("RemoteEvent") then
+                local name = string.lower(remote.Name)
+                if name:find("word") or name:find("kata") or name:find("sambung")
+                   or name:find("answer") or name:find("jawab") or name:find("chain")
+                   or name:find("game") then
+                    remote.OnClientEvent:Connect(function(...)
+                        local args = {...}
+                        for _, arg in ipairs(args) do
+                            if type(arg) == "string" then
+                                local word = cleanWord(arg)
+                                if #word >= CONFIG.MinWordLength then
+                                    processIncomingWord(arg, "Game", gui)
+                                end
+                            elseif type(arg) == "table" then
+                                for _, v in pairs(arg) do
+                                    if type(v) == "string" then
+                                        local word = cleanWord(v)
+                                        if #word >= CONFIG.MinWordLength then
+                                            processIncomingWord(v, "Game", gui)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+    end)
+end
+
+-------------------------------------------------
+-- GUI WORD SCANNER
+-------------------------------------------------
+local function setupGUIScanner(gui)
+    task.spawn(function()
+        while task.wait(2.5) do
+            if State.autoPlayEnabled and not State.isProcessing then
+                pcall(function()
+                    for _, g in ipairs(playerGui:GetChildren()) do
+                        if g.Name ~= "SambungKataGUI" then
+                            for _, desc in ipairs(g:GetDescendants()) do
+                                if desc:IsA("TextLabel") and desc.Visible then
+                                    local text = cleanWord(desc.Text)
+                                    if #text >= 3 and #text <= 25 then
+                                        if text ~= cleanWord(State.lastWord) then
+                                            if isWordInDatabase(text) then
+                                                processIncomingWord(text, "GameGUI", gui)
+                                                break
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+end
+
+-------------------------------------------------
+-- KEYBOARD TOGGLE
+-------------------------------------------------
+local function setupKeybind(gui)
+    UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if input.KeyCode == CONFIG.ToggleKey then
+            gui.Main.Visible = not gui.Main.Visible
+        end
+    end)
+end
+
+-------------------------------------------------
+-- MAIN
+-------------------------------------------------
+local function main()
+    print("══════════════════════════════════════════")
+    print("  🔤 SAMBUNG KATA v2.1 LOADED!")
+    print("  ✅ Correction Mode = Auto Validasi Kata")
+    print("  📌 Tekan RightCtrl untuk toggle GUI")
+    print("══════════════════════════════════════════")
+
+    local gui = createGUI()
+
+    setupChatMonitor(gui)
+    setupRemoteScanner(gui)
+    setupGUIScanner(gui)
+    setupKeybind(gui)
+
+    notify("🔤 Sambung Kata v2.1",
+        "Loaded! Correction = Auto Validasi kata baru!\nTekan RCtrl toggle GUI.", 5)
+
+    -- Intro animation
+    gui.Main.Size = UDim2.new(0, 0, 0, 0)
+    gui.Main.Position = UDim2.new(0.5, 0, 0.5, 0)
+    TweenService:Create(gui.Main, TweenInfo.new(0.5, Enum.EasingStyle.Back), {
+        Size = UDim2.new(0, 330, 0, 470),
+        Position = UDim2.new(0.5, -165, 0.5, -235),
+    }):Play()
+end
+
+main()
