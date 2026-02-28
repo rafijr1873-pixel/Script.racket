@@ -1,0 +1,1200 @@
+--[[
+    ╔══════════════════════════════════════╗
+    ║     RACKET RIVALS SCRIPT v3.0       ║
+    ║     FIXED: Hitbox, AutoHit, GUI     ║
+    ╚══════════════════════════════════════╝
+]]
+
+-- SERVICES
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
+local VIM = game:GetService("VirtualInputManager")
+
+local LP = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local Mouse = LP:GetMouse()
+
+-- CONFIG
+local Config = {
+    HitboxEnabled = false,
+    HitboxSize = 15,
+    HitboxTransparency = 0.6,
+    
+    AutoHitEnabled = false,
+    AutoHitRange = 25,
+    AutoSwing = false,
+    SwingCooldown = 0.15,
+    
+    BallESP = false,
+    PlayerESP = false,
+    BallPrediction = false,
+    
+    SpeedEnabled = false,
+    SpeedValue = 50,
+    InfiniteJump = false,
+    NoclipEnabled = false,
+    AutoPosition = false,
+    
+    AntiAFK = true,
+}
+
+-- STATE
+local Connections = {}
+local ESPCache = {}
+local ScriptActive = true
+local GUIVisible = true
+local LastSwing = 0
+local OriginalBallSizes = {}
+
+-- ════════════════════════════════════
+-- UTILITY
+-- ════════════════════════════════════
+local function Notify(title, text, dur)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title or "Racket Rivals",
+            Text = text or "",
+            Duration = dur or 2
+        })
+    end)
+end
+
+local function GetChar()
+    return LP.Character
+end
+
+local function GetHRP()
+    local c = GetChar()
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetHumanoid()
+    local c = GetChar()
+    return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+-- SMART BALL FINDER
+local function FindAllBalls()
+    local balls = {}
+    
+    -- Scan seluruh workspace
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and not obj.Anchored then
+            local n = obj.Name:lower()
+            if n:find("ball") or n:find("shuttle") or n:find("birdie") or
+               n:find("projectile") or n:find("cork") then
+                -- Pastikan bukan bagian character
+                local isCharPart = false
+                for _, plr in pairs(Players:GetPlayers()) do
+                    if plr.Character and obj:IsDescendantOf(plr.Character) then
+                        isCharPart = true
+                        break
+                    end
+                end
+                if not isCharPart then
+                    table.insert(balls, obj)
+                end
+            end
+        end
+    end
+    
+    -- Fallback: cari part kecil yang bergerak (kemungkinan bola)
+    if #balls == 0 then
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and not obj.Anchored then
+                local size = obj.Size
+                local maxDim = math.max(size.X, size.Y, size.Z)
+                if maxDim < 3 and obj.Velocity.Magnitude > 1 then
+                    local isCharPart = false
+                    for _, plr in pairs(Players:GetPlayers()) do
+                        if plr.Character and obj:IsDescendantOf(plr.Character) then
+                            isCharPart = true
+                            break
+                        end
+                    end
+                    if not isCharPart then
+                        table.insert(balls, obj)
+                    end
+                end
+            end
+        end
+    end
+    
+    return balls
+end
+
+local function GetClosestBall()
+    local hrp = GetHRP()
+    if not hrp then return nil, math.huge end
+    
+    local closest, closestDist = nil, math.huge
+    for _, ball in pairs(FindAllBalls()) do
+        if ball and ball.Parent then
+            local dist = (hrp.Position - ball.Position).Magnitude
+            if dist < closestDist then
+                closest = ball
+                closestDist = dist
+            end
+        end
+    end
+    return closest, closestDist
+end
+
+-- ════════════════════════════════════
+-- GUI CREATION (COMPACT)
+-- ════════════════════════════════════
+local function BuildGUI()
+    -- Cleanup
+    local old = LP.PlayerGui:FindFirstChild("RR_GUI")
+    if old then old:Destroy() end
+    
+    local SG = Instance.new("ScreenGui")
+    SG.Name = "RR_GUI"
+    SG.ResetOnSpawn = false
+    SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    pcall(function()
+        if syn and syn.protect_gui then syn.protect_gui(SG) end
+    end)
+    pcall(function()
+        if gethui then SG.Parent = gethui() return end
+    end)
+    SG.Parent = LP.PlayerGui
+    
+    -- ═══ TOGGLE BUTTON (selalu terlihat) ═══
+    local ToggleBtn = Instance.new("TextButton")
+    ToggleBtn.Name = "ToggleBtn"
+    ToggleBtn.Size = UDim2.new(0, 40, 0, 40)
+    ToggleBtn.Position = UDim2.new(0, 10, 0.5, -20)
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(80, 30, 200)
+    ToggleBtn.Text = "🏸"
+    ToggleBtn.TextSize = 20
+    ToggleBtn.Font = Enum.Font.GothamBold
+    ToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+    ToggleBtn.BorderSizePixel = 0
+    ToggleBtn.ZIndex = 100
+    ToggleBtn.Parent = SG
+    
+    local tbCorner = Instance.new("UICorner")
+    tbCorner.CornerRadius = UDim.new(0, 10)
+    tbCorner.Parent = ToggleBtn
+    
+    local tbStroke = Instance.new("UIStroke")
+    tbStroke.Color = Color3.fromRGB(140, 80, 255)
+    tbStroke.Thickness = 2
+    tbStroke.Parent = ToggleBtn
+    
+    -- ═══ MAIN FRAME (compact) ═══
+    local Main = Instance.new("Frame")
+    Main.Name = "Main"
+    Main.Size = UDim2.new(0, 310, 0, 400)
+    Main.Position = UDim2.new(0.5, -155, 0.5, -200)
+    Main.BackgroundColor3 = Color3.fromRGB(18, 14, 30)
+    Main.BorderSizePixel = 0
+    Main.Active = true
+    Main.Draggable = true
+    Main.Visible = true
+    Main.Parent = SG
+    
+    Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+    
+    local mStroke = Instance.new("UIStroke")
+    mStroke.Color = Color3.fromRGB(100, 50, 255)
+    mStroke.Thickness = 1.5
+    mStroke.Parent = Main
+    
+    -- Toggle GUI handler
+    ToggleBtn.MouseButton1Click:Connect(function()
+        GUIVisible = not GUIVisible
+        Main.Visible = GUIVisible
+    end)
+    
+    -- ═══ TITLE ═══
+    local Title = Instance.new("Frame")
+    Title.Size = UDim2.new(1, 0, 0, 32)
+    Title.BackgroundColor3 = Color3.fromRGB(30, 15, 55)
+    Title.BorderSizePixel = 0
+    Title.Parent = Main
+    Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 8)
+    
+    -- Fix bottom corners
+    local tFix = Instance.new("Frame")
+    tFix.Size = UDim2.new(1, 0, 0, 10)
+    tFix.Position = UDim2.new(0, 0, 1, -10)
+    tFix.BackgroundColor3 = Color3.fromRGB(30, 15, 55)
+    tFix.BorderSizePixel = 0
+    tFix.Parent = Title
+    
+    local tLabel = Instance.new("TextLabel")
+    tLabel.Size = UDim2.new(1, -40, 1, 0)
+    tLabel.Position = UDim2.new(0, 10, 0, 0)
+    tLabel.BackgroundTransparency = 1
+    tLabel.Text = "🏸 RACKET RIVALS v3"
+    tLabel.TextColor3 = Color3.new(1, 1, 1)
+    tLabel.TextSize = 14
+    tLabel.Font = Enum.Font.GothamBold
+    tLabel.TextXAlignment = Enum.TextXAlignment.Left
+    tLabel.Parent = Title
+    
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 24, 0, 24)
+    closeBtn.Position = UDim2.new(1, -30, 0, 4)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = Color3.new(1, 1, 1)
+    closeBtn.TextSize = 11
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.BorderSizePixel = 0
+    closeBtn.Parent = Title
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        GUIVisible = false
+        Main.Visible = false
+    end)
+    
+    -- ═══ TAB BAR ═══
+    local TabBar = Instance.new("Frame")
+    TabBar.Size = UDim2.new(1, -12, 0, 26)
+    TabBar.Position = UDim2.new(0, 6, 0, 36)
+    TabBar.BackgroundColor3 = Color3.fromRGB(25, 18, 42)
+    TabBar.BorderSizePixel = 0
+    TabBar.Parent = Main
+    Instance.new("UICorner", TabBar).CornerRadius = UDim.new(0, 6)
+    
+    local tabLayout = Instance.new("UIListLayout")
+    tabLayout.FillDirection = Enum.FillDirection.Horizontal
+    tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    tabLayout.Padding = UDim.new(0, 3)
+    tabLayout.Parent = TabBar
+    
+    Instance.new("UIPadding", TabBar).PaddingTop = UDim.new(0, 3)
+    
+    local tabNames = {"Combat", "ESP", "Move", "Misc"}
+    local TabBtns = {}
+    local TabFrames = {}
+    
+    for i, name in ipairs(tabNames) do
+        local tb = Instance.new("TextButton")
+        tb.Size = UDim2.new(0, 70, 0, 20)
+        tb.BackgroundColor3 = (i == 1) and Color3.fromRGB(90, 40, 220) or Color3.fromRGB(35, 28, 55)
+        tb.Text = name
+        tb.TextColor3 = Color3.new(1, 1, 1)
+        tb.TextSize = 10
+        tb.Font = Enum.Font.GothamSemibold
+        tb.BorderSizePixel = 0
+        tb.LayoutOrder = i
+        tb.Parent = TabBar
+        Instance.new("UICorner", tb).CornerRadius = UDim.new(0, 5)
+        TabBtns[i] = tb
+        
+        -- Content scroll
+        local sf = Instance.new("ScrollingFrame")
+        sf.Size = UDim2.new(1, -12, 1, -72)
+        sf.Position = UDim2.new(0, 6, 0, 66)
+        sf.BackgroundColor3 = Color3.fromRGB(22, 17, 36)
+        sf.BorderSizePixel = 0
+        sf.ScrollBarThickness = 3
+        sf.ScrollBarImageColor3 = Color3.fromRGB(100, 50, 255)
+        sf.CanvasSize = UDim2.new(0, 0, 0, 0)
+        sf.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        sf.Visible = (i == 1)
+        sf.Parent = Main
+        Instance.new("UICorner", sf).CornerRadius = UDim.new(0, 6)
+        
+        local cl = Instance.new("UIListLayout")
+        cl.Padding = UDim.new(0, 4)
+        cl.SortOrder = Enum.SortOrder.LayoutOrder
+        cl.Parent = sf
+        
+        local cp = Instance.new("UIPadding")
+        cp.PaddingLeft = UDim.new(0, 6)
+        cp.PaddingRight = UDim.new(0, 6)
+        cp.PaddingTop = UDim.new(0, 6)
+        cp.PaddingBottom = UDim.new(0, 6)
+        cp.Parent = sf
+        
+        TabFrames[i] = sf
+    end
+    
+    -- Tab switch
+    local function SwitchTab(idx)
+        for i = 1, #tabNames do
+            TabBtns[i].BackgroundColor3 = (i == idx) and Color3.fromRGB(90, 40, 220) or Color3.fromRGB(35, 28, 55)
+            TabFrames[i].Visible = (i == idx)
+        end
+    end
+    for i, btn in pairs(TabBtns) do
+        btn.MouseButton1Click:Connect(function() SwitchTab(i) end)
+    end
+    
+    -- ═══ UI BUILDERS ═══
+    local function MakeToggle(parent, text, default, callback, order)
+        local f = Instance.new("Frame")
+        f.Size = UDim2.new(1, 0, 0, 28)
+        f.BackgroundColor3 = Color3.fromRGB(28, 22, 48)
+        f.BorderSizePixel = 0
+        f.LayoutOrder = order or 0
+        f.Parent = parent
+        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
+        
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, -50, 1, 0)
+        lbl.Position = UDim2.new(0, 8, 0, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = text
+        lbl.TextColor3 = Color3.fromRGB(210, 210, 220)
+        lbl.TextSize = 11
+        lbl.Font = Enum.Font.GothamMedium
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = f
+        
+        local bg = Instance.new("Frame")
+        bg.Size = UDim2.new(0, 36, 0, 18)
+        bg.Position = UDim2.new(1, -44, 0.5, -9)
+        bg.BackgroundColor3 = default and Color3.fromRGB(90, 40, 220) or Color3.fromRGB(50, 45, 70)
+        bg.BorderSizePixel = 0
+        bg.Parent = f
+        Instance.new("UICorner", bg).CornerRadius = UDim.new(1, 0)
+        
+        local knob = Instance.new("Frame")
+        knob.Size = UDim2.new(0, 14, 0, 14)
+        knob.Position = default and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+        knob.BackgroundColor3 = Color3.new(1, 1, 1)
+        knob.BorderSizePixel = 0
+        knob.Parent = bg
+        Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
+        
+        local on = default
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, 0, 1, 0)
+        btn.BackgroundTransparency = 1
+        btn.Text = ""
+        btn.Parent = f
+        
+        btn.MouseButton1Click:Connect(function()
+            on = not on
+            TweenService:Create(bg, TweenInfo.new(0.15), {
+                BackgroundColor3 = on and Color3.fromRGB(90, 40, 220) or Color3.fromRGB(50, 45, 70)
+            }):Play()
+            TweenService:Create(knob, TweenInfo.new(0.15, Enum.EasingStyle.Back), {
+                Position = on and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+            }):Play()
+            if callback then callback(on) end
+        end)
+        
+        return f
+    end
+    
+    local function MakeSlider(parent, text, min, max, default, callback, order)
+        local f = Instance.new("Frame")
+        f.Size = UDim2.new(1, 0, 0, 42)
+        f.BackgroundColor3 = Color3.fromRGB(28, 22, 48)
+        f.BorderSizePixel = 0
+        f.LayoutOrder = order or 0
+        f.Parent = parent
+        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
+        
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, -50, 0, 18)
+        lbl.Position = UDim2.new(0, 8, 0, 2)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = text
+        lbl.TextColor3 = Color3.fromRGB(210, 210, 220)
+        lbl.TextSize = 11
+        lbl.Font = Enum.Font.GothamMedium
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = f
+        
+        local valLbl = Instance.new("TextLabel")
+        valLbl.Size = UDim2.new(0, 40, 0, 18)
+        valLbl.Position = UDim2.new(1, -48, 0, 2)
+        valLbl.BackgroundTransparency = 1
+        valLbl.Text = tostring(default)
+        valLbl.TextColor3 = Color3.fromRGB(120, 180, 255)
+        valLbl.TextSize = 11
+        valLbl.Font = Enum.Font.GothamBold
+        valLbl.TextXAlignment = Enum.TextXAlignment.Right
+        valLbl.Parent = f
+        
+        local barBG = Instance.new("Frame")
+        barBG.Size = UDim2.new(1, -16, 0, 6)
+        barBG.Position = UDim2.new(0, 8, 0, 26)
+        barBG.BackgroundColor3 = Color3.fromRGB(40, 35, 60)
+        barBG.BorderSizePixel = 0
+        barBG.Parent = f
+        Instance.new("UICorner", barBG).CornerRadius = UDim.new(1, 0)
+        
+        local fill = Instance.new("Frame")
+        fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+        fill.BackgroundColor3 = Color3.fromRGB(90, 40, 220)
+        fill.BorderSizePixel = 0
+        fill.Parent = barBG
+        Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+        
+        local dragging = false
+        
+        local clickArea = Instance.new("TextButton")
+        clickArea.Size = UDim2.new(1, 0, 0, 16)
+        clickArea.Position = UDim2.new(0, 0, 0, 20)
+        clickArea.BackgroundTransparency = 1
+        clickArea.Text = ""
+        clickArea.Parent = f
+        
+        local function Update(input)
+            local absX = barBG.AbsolutePosition.X
+            local absW = barBG.AbsoluteSize.X
+            local rel = math.clamp((input.Position.X - absX) / absW, 0, 1)
+            local val = math.floor(min + (max - min) * rel)
+            valLbl.Text = tostring(val)
+            fill.Size = UDim2.new(rel, 0, 1, 0)
+            if callback then callback(val) end
+        end
+        
+        clickArea.InputBegan:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                Update(inp)
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(inp)
+            if dragging and (inp.UserInputType == Enum.UserInputType.MouseMovement or inp.UserInputType == Enum.UserInputType.Touch) then
+                Update(inp)
+            end
+        end)
+        
+        UserInputService.InputEnded:Connect(function(inp)
+            if inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+        
+        return f
+    end
+    
+    local function MakeLabel(parent, text, order)
+        local l = Instance.new("TextLabel")
+        l.Size = UDim2.new(1, 0, 0, 18)
+        l.BackgroundTransparency = 1
+        l.Text = "─ " .. text .. " ─"
+        l.TextColor3 = Color3.fromRGB(130, 90, 255)
+        l.TextSize = 10
+        l.Font = Enum.Font.GothamBold
+        l.LayoutOrder = order or 0
+        l.Parent = parent
+    end
+    
+    local function MakeButton(parent, text, callback, order)
+        local b = Instance.new("TextButton")
+        b.Size = UDim2.new(1, 0, 0, 26)
+        b.BackgroundColor3 = Color3.fromRGB(70, 30, 180)
+        b.Text = text
+        b.TextColor3 = Color3.new(1, 1, 1)
+        b.TextSize = 11
+        b.Font = Enum.Font.GothamSemibold
+        b.BorderSizePixel = 0
+        b.LayoutOrder = order or 0
+        b.Parent = parent
+        Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
+        b.MouseButton1Click:Connect(function() if callback then callback() end end)
+        return b
+    end
+    
+    -- ═══════════════════════════════
+    -- TAB 1: COMBAT
+    -- ═══════════════════════════════
+    local t1 = TabFrames[1]
+    
+    MakeLabel(t1, "BALL HITBOX", 1)
+    
+    MakeToggle(t1, "🎯 Ball Hitbox Expander", false, function(v)
+        Config.HitboxEnabled = v
+        if not v then
+            -- Restore original ball sizes
+            for ball, origSize in pairs(OriginalBallSizes) do
+                pcall(function()
+                    if ball and ball.Parent then
+                        ball.Size = origSize
+                        ball.Transparency = 0
+                    end
+                end)
+            end
+            OriginalBallSizes = {}
+        end
+        Notify("Hitbox", v and "Ball Hitbox ON" or "Ball Hitbox OFF")
+    end, 2)
+    
+    MakeSlider(t1, "Hitbox Size", 3, 40, 15, function(v)
+        Config.HitboxSize = v
+    end, 3)
+    
+    MakeSlider(t1, "Hitbox Transparency", 0, 9, 6, function(v)
+        Config.HitboxTransparency = v / 10
+    end, 4)
+    
+    MakeLabel(t1, "AUTO HIT", 5)
+    
+    MakeToggle(t1, "⚡ Auto Hit (Click)", false, function(v)
+        Config.AutoHitEnabled = v
+        Notify("Auto Hit", v and "Auto Hit ON" or "Auto Hit OFF")
+    end, 6)
+    
+    MakeSlider(t1, "Hit Range", 5, 50, 25, function(v)
+        Config.AutoHitRange = v
+    end, 7)
+    
+    MakeToggle(t1, "🔄 Auto Swing (Spam)", false, function(v)
+        Config.AutoSwing = v
+        Notify("Swing", v and "Auto Swing ON" or "Auto Swing OFF")
+    end, 8)
+    
+    MakeSlider(t1, "Swing Delay (ms)", 50, 500, 150, function(v)
+        Config.SwingCooldown = v / 1000
+    end, 9)
+    
+    -- ═══════════════════════════════
+    -- TAB 2: ESP
+    -- ═══════════════════════════════
+    local t2 = TabFrames[2]
+    
+    MakeLabel(t2, "VISUALS", 1)
+    
+    MakeToggle(t2, "🟢 Ball ESP + Tracker", false, function(v)
+        Config.BallESP = v
+        if not v then
+            for key, obj in pairs(ESPCache) do
+                pcall(function() obj:Destroy() end)
+            end
+            ESPCache = {}
+        end
+        Notify("ESP", v and "Ball ESP ON" or "Ball ESP OFF")
+    end, 2)
+    
+    MakeToggle(t2, "🔵 Player ESP", false, function(v)
+        Config.PlayerESP = v
+        if not v then
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr.Character then
+                    local e = plr.Character:FindFirstChild("_PESP")
+                    if e then e:Destroy() end
+                    local h = plr.Character:FindFirstChild("_PHigh")
+                    if h then h:Destroy() end
+                end
+            end
+        end
+        Notify("ESP", v and "Player ESP ON" or "Player ESP OFF")
+    end, 3)
+    
+    MakeToggle(t2, "📍 Ball Landing Predict", false, function(v)
+        Config.BallPrediction = v
+        Notify("Predict", v and "Prediction ON" or "Prediction OFF")
+    end, 4)
+    
+    MakeButton(t2, "🗑 Clear All ESP", function()
+        for key, obj in pairs(ESPCache) do
+            pcall(function() obj:Destroy() end)
+        end
+        ESPCache = {}
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr.Character then
+                local e = plr.Character:FindFirstChild("_PESP")
+                if e then e:Destroy() end
+                local h = plr.Character:FindFirstChild("_PHigh")
+                if h then h:Destroy() end
+            end
+        end
+        Notify("ESP", "Cleared!")
+    end, 5)
+    
+    -- ═══════════════════════════════
+    -- TAB 3: MOVEMENT
+    -- ═══════════════════════════════
+    local t3 = TabFrames[3]
+    
+    MakeLabel(t3, "SPEED", 1)
+    
+    MakeToggle(t3, "💨 Speed Hack", false, function(v)
+        Config.SpeedEnabled = v
+        if not v then
+            local h = GetHumanoid()
+            if h then h.WalkSpeed = 16 end
+        end
+        Notify("Speed", v and "Speed ON" or "Speed OFF")
+    end, 2)
+    
+    MakeSlider(t3, "Speed Value", 16, 150, 50, function(v)
+        Config.SpeedValue = v
+    end, 3)
+    
+    MakeLabel(t3, "SPECIALS", 4)
+    
+    MakeToggle(t3, "♾️ Infinite Jump", false, function(v)
+        Config.InfiniteJump = v
+    end, 5)
+    
+    MakeToggle(t3, "👻 Noclip", false, function(v)
+        Config.NoclipEnabled = v
+    end, 6)
+    
+    MakeToggle(t3, "🧲 Auto Position (Magnet)", false, function(v)
+        Config.AutoPosition = v
+        Notify("Magnet", v and "Ball Magnet ON" or "Ball Magnet OFF")
+    end, 7)
+    
+    -- ═══════════════════════════════
+    -- TAB 4: MISC
+    -- ═══════════════════════════════
+    local t4 = TabFrames[4]
+    
+    MakeLabel(t4, "UTILITIES", 1)
+    
+    MakeToggle(t4, "🚫 Anti AFK", true, function(v)
+        Config.AntiAFK = v
+    end, 2)
+    
+    MakeButton(t4, "🔃 Rejoin Server", function()
+        Notify("Rejoin", "Rejoining...")
+        task.wait(0.5)
+        pcall(function()
+            game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LP)
+        end)
+    end, 3)
+    
+    MakeButton(t4, "📋 Print Remotes (F9)", function()
+        print("\n══ REMOTES ══")
+        for _, r in pairs(ReplicatedStorage:GetDescendants()) do
+            if r:IsA("RemoteEvent") or r:IsA("RemoteFunction") then
+                print(r.ClassName .. ": " .. r:GetFullName())
+            end
+        end
+        print("══════════════\n")
+        Notify("Remotes", "Check F9 console")
+    end, 4)
+    
+    MakeButton(t4, "❌ Destroy Script", function()
+        ScriptActive = false
+        for _, c in pairs(Connections) do pcall(function() c:Disconnect() end) end
+        for _, o in pairs(ESPCache) do pcall(function() o:Destroy() end) end
+        for ball, origSize in pairs(OriginalBallSizes) do
+            pcall(function() if ball and ball.Parent then ball.Size = origSize; ball.Transparency = 0 end end)
+        end
+        SG:Destroy()
+        Notify("Script", "Destroyed!")
+    end, 5)
+    
+    MakeLabel(t4, "INFO", 6)
+    
+    local info = Instance.new("TextLabel")
+    info.Size = UDim2.new(1, 0, 0, 40)
+    info.BackgroundColor3 = Color3.fromRGB(28, 22, 48)
+    info.Text = "Press P or click 🏸 to toggle\nDrag title bar to move"
+    info.TextColor3 = Color3.fromRGB(150, 150, 180)
+    info.TextSize = 10
+    info.Font = Enum.Font.Gotham
+    info.TextWrapped = true
+    info.LayoutOrder = 7
+    info.BorderSizePixel = 0
+    info.Parent = t4
+    Instance.new("UICorner", info).CornerRadius = UDim.new(0, 6)
+    
+    -- ═══ BALL INFO BAR (bottom) ═══
+    local StatusBar = Instance.new("Frame")
+    StatusBar.Size = UDim2.new(1, -12, 0, 22)
+    StatusBar.Position = UDim2.new(0, 6, 1, -28)
+    StatusBar.BackgroundColor3 = Color3.fromRGB(25, 18, 42)
+    StatusBar.BorderSizePixel = 0
+    StatusBar.Parent = Main
+    Instance.new("UICorner", StatusBar).CornerRadius = UDim.new(0, 5)
+    
+    local statusTxt = Instance.new("TextLabel")
+    statusTxt.Name = "StatusTxt"
+    statusTxt.Size = UDim2.new(1, -8, 1, 0)
+    statusTxt.Position = UDim2.new(0, 4, 0, 0)
+    statusTxt.BackgroundTransparency = 1
+    statusTxt.Text = "🏸 Ready"
+    statusTxt.TextColor3 = Color3.fromRGB(140, 140, 180)
+    statusTxt.TextSize = 9
+    statusTxt.Font = Enum.Font.GothamMedium
+    statusTxt.TextXAlignment = Enum.TextXAlignment.Left
+    statusTxt.Parent = StatusBar
+    
+    return SG, Main, statusTxt
+end
+
+-- ════════════════════════════════════
+-- CORE FEATURES
+-- ════════════════════════════════════
+
+-- ═══ BALL HITBOX EXPANDER ═══
+local function StartHitbox()
+    Connections.Hitbox = RunService.Heartbeat:Connect(function()
+        if not ScriptActive then return end
+        if not Config.HitboxEnabled then return end
+        
+        local balls = FindAllBalls()
+        for _, ball in pairs(balls) do
+            if ball and ball.Parent then
+                -- Save original size
+                if not OriginalBallSizes[ball] then
+                    OriginalBallSizes[ball] = ball.Size
+                end
+                
+                -- Expand ball
+                local targetSize = Vector3.new(Config.HitboxSize, Config.HitboxSize, Config.HitboxSize)
+                if ball.Size ~= targetSize then
+                    ball.Size = targetSize
+                end
+                ball.Transparency = Config.HitboxTransparency
+                ball.CanCollide = false
+                
+                -- Visual color (merah transparan)
+                pcall(function()
+                    ball.Color = Color3.fromRGB(255, 50, 50)
+                    ball.Material = Enum.Material.ForceField
+                end)
+            end
+        end
+        
+        -- Cleanup balls yang sudah hilang
+        for ball, _ in pairs(OriginalBallSizes) do
+            if not ball or not ball.Parent then
+                OriginalBallSizes[ball] = nil
+            end
+        end
+    end)
+end
+
+-- ═══ AUTO HIT / AUTO SWING ═══
+local function StartAutoHit()
+    Connections.AutoHit = RunService.Heartbeat:Connect(function()
+        if not ScriptActive then return end
+        
+        local now = tick()
+        
+        -- Auto Hit: klik saat bola dekat
+        if Config.AutoHitEnabled then
+            local ball, dist = GetClosestBall()
+            if ball and dist <= Config.AutoHitRange then
+                if now - LastSwing >= Config.SwingCooldown then
+                    LastSwing = now
+                    
+                    -- Method 1: mouse1click (paling reliable di executor)
+                    pcall(function()
+                        mouse1click()
+                    end)
+                    
+                    -- Method 2: VirtualInputManager
+                    pcall(function()
+                        local vpSize = Camera.ViewportSize
+                        VIM:SendMouseButtonEvent(vpSize.X / 2, vpSize.Y / 2, 0, true, game, 1)
+                        task.defer(function()
+                            VIM:SendMouseButtonEvent(vpSize.X / 2, vpSize.Y / 2, 0, false, game, 1)
+                        end)
+                    end)
+                    
+                    -- Method 3: Fire relevant remotes
+                    pcall(function()
+                        for _, remote in pairs(ReplicatedStorage:GetDescendants()) do
+                            if remote:IsA("RemoteEvent") then
+                                local rn = remote.Name:lower()
+                                if rn:find("hit") or rn:find("swing") or rn:find("smash") or rn:find("shot") or rn:find("attack") then
+                                    pcall(function()
+                                        remote:FireServer()
+                                    end)
+                                    pcall(function()
+                                        remote:FireServer(ball.Position)
+                                    end)
+                                    pcall(function()
+                                        remote:FireServer(ball)
+                                    end)
+                                end
+                            end
+                        end
+                    end)
+                end
+            end
+        end
+        
+        -- Auto Swing: spam klik terus menerus
+        if Config.AutoSwing then
+            if now - LastSwing >= Config.SwingCooldown then
+                LastSwing = now
+                pcall(function() mouse1click() end)
+                pcall(function()
+                    local vpSize = Camera.ViewportSize
+                    VIM:SendMouseButtonEvent(vpSize.X / 2, vpSize.Y / 2, 0, true, game, 1)
+                    task.defer(function()
+                        VIM:SendMouseButtonEvent(vpSize.X / 2, vpSize.Y / 2, 0, false, game, 1)
+                    end)
+                end)
+            end
+        end
+    end)
+end
+
+-- ═══ BALL ESP ═══
+local function StartBallESP()
+    Connections.BallESP = RunService.RenderStepped:Connect(function()
+        if not ScriptActive then return end
+        if not Config.BallESP then return end
+        
+        local balls = FindAllBalls()
+        local hrp = GetHRP()
+        
+        for _, ball in pairs(balls) do
+            if ball and ball.Parent then
+                local key = "ball_" .. tostring(ball)
+                
+                if not ESPCache[key] or not ESPCache[key].Parent then
+                    -- Create ESP folder
+                    local folder = Instance.new("Folder")
+                    folder.Name = "_BallESP"
+                    
+                    -- Billboard
+                    local bb = Instance.new("BillboardGui")
+                    bb.Size = UDim2.new(0, 140, 0, 40)
+                    bb.StudsOffset = Vector3.new(0, 3, 0)
+                    bb.AlwaysOnTop = true
+                    bb.Adornee = ball
+                    bb.Parent = ball
+                    
+                    local nameL = Instance.new("TextLabel")
+                    nameL.Size = UDim2.new(1, 0, 0.5, 0)
+                    nameL.BackgroundTransparency = 1
+                    nameL.Text = "🟢 BALL"
+                    nameL.TextColor3 = Color3.fromRGB(0, 255, 100)
+                    nameL.TextSize = 14
+                    nameL.Font = Enum.Font.GothamBold
+                    nameL.TextStrokeTransparency = 0.4
+                    nameL.TextStrokeColor3 = Color3.new(0, 0, 0)
+                    nameL.Parent = bb
+                    
+                    local distL = Instance.new("TextLabel")
+                    distL.Name = "Dist"
+                    distL.Size = UDim2.new(1, 0, 0.5, 0)
+                    distL.Position = UDim2.new(0, 0, 0.5, 0)
+                    distL.BackgroundTransparency = 1
+                    distL.Text = "? studs"
+                    distL.TextColor3 = Color3.fromRGB(255, 255, 100)
+                    distL.TextSize = 11
+                    distL.Font = Enum.Font.GothamSemibold
+                    distL.TextStrokeTransparency = 0.4
+                    distL.TextStrokeColor3 = Color3.new(0, 0, 0)
+                    distL.Parent = bb
+                    
+                    -- Highlight
+                    local hl = Instance.new("Highlight")
+                    hl.FillColor = Color3.fromRGB(0, 255, 100)
+                    hl.FillTransparency = 0.4
+                    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    hl.OutlineTransparency = 0
+                    hl.Adornee = ball
+                    hl.Parent = ball
+                    
+                    ESPCache[key] = bb
+                    ESPCache[key .. "_hl"] = hl
+                end
+                
+                -- Update distance
+                local bb = ESPCache[key]
+                if bb and bb.Parent then
+                    local distL = bb:FindFirstChild("Dist")
+                    if distL and hrp then
+                        local d = (hrp.Position - ball.Position).Magnitude
+                        distL.Text = string.format("%.1f studs", d)
+                        if d < 15 then
+                            distL.TextColor3 = Color3.fromRGB(0, 255, 0)
+                        elseif d < 30 then
+                            distL.TextColor3 = Color3.fromRGB(255, 255, 0)
+                        else
+                            distL.TextColor3 = Color3.fromRGB(255, 80, 80)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- ═══ PLAYER ESP ═══
+local function StartPlayerESP()
+    Connections.PlayerESP = RunService.RenderStepped:Connect(function()
+        if not ScriptActive then return end
+        if not Config.PlayerESP then return end
+        
+        local hrp = GetHRP()
+        
+        for _, plr in pairs(Players:GetPlayers()) do
+            if plr ~= LP and plr.Character then
+                local char = plr.Character
+                local phrp = char:FindFirstChild("HumanoidRootPart")
+                if phrp and not char:FindFirstChild("_PESP") then
+                    local bb = Instance.new("BillboardGui")
+                    bb.Name = "_PESP"
+                    bb.Size = UDim2.new(0, 140, 0, 35)
+                    bb.StudsOffset = Vector3.new(0, 3.5, 0)
+                    bb.AlwaysOnTop = true
+                    bb.Adornee = phrp
+                    bb.Parent = char
+                    
+                    local nl = Instance.new("TextLabel")
+                    nl.Size = UDim2.new(1, 0, 0.55, 0)
+                    nl.BackgroundTransparency = 1
+                    nl.Text = "🔵 " .. plr.Name
+                    nl.TextColor3 = Color3.fromRGB(80, 160, 255)
+                    nl.TextSize = 12
+                    nl.Font = Enum.Font.GothamBold
+                    nl.TextStrokeTransparency = 0.4
+                    nl.TextStrokeColor3 = Color3.new(0, 0, 0)
+                    nl.Parent = bb
+                    
+                    local dl = Instance.new("TextLabel")
+                    dl.Name = "PDist"
+                    dl.Size = UDim2.new(1, 0, 0.45, 0)
+                    dl.Position = UDim2.new(0, 0, 0.55, 0)
+                    dl.BackgroundTransparency = 1
+                    dl.Text = "? studs"
+                    dl.TextColor3 = Color3.fromRGB(200, 200, 200)
+                    dl.TextSize = 10
+                    dl.Font = Enum.Font.Gotham
+                    dl.TextStrokeTransparency = 0.4
+                    dl.Parent = bb
+                    
+                    local hl = Instance.new("Highlight")
+                    hl.Name = "_PHigh"
+                    hl.FillColor = Color3.fromRGB(80, 160, 255)
+                    hl.FillTransparency = 0.7
+                    hl.OutlineColor = Color3.fromRGB(80, 160, 255)
+                    hl.Parent = char
+                end
+                
+                -- Update dist
+                local bb = char:FindFirstChild("_PESP")
+                if bb and phrp and hrp then
+                    local dl = bb:FindFirstChild("PDist")
+                    if dl then
+                        dl.Text = string.format("%.0f studs", (hrp.Position - phrp.Position).Magnitude)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- ═══ BALL PREDICTION ═══
+local function StartPrediction()
+    local predPart = Instance.new("Part")
+    predPart.Name = "_BallPred"
+    predPart.Size = Vector3.new(3, 0.2, 3)
+    predPart.Color = Color3.fromRGB(255, 255, 0)
+    predPart.Material = Enum.Material.Neon
+    predPart.Transparency = 1
+    predPart.Anchored = true
+    predPart.CanCollide = false
+    predPart.CastShadow = false
+    predPart.Shape = Enum.PartType.Cylinder
+    predPart.Parent = Workspace
+    
+    Connections.Prediction = RunService.Heartbeat:Connect(function()
+        if not ScriptActive then
+            pcall(function() predPart:Destroy() end)
+            return
+        end
+        
+        if not Config.BallPrediction then
+            predPart.Transparency = 1
+            return
+        end
+        
+        local ball = GetClosestBall()
+        if ball and ball.Parent then
+            local pos = ball.Position
+            local vel = ball.Velocity
+            local grav = Vector3.new(0, -Workspace.Gravity, 0)
+            
+            local predicted = pos
+            local tmpVel = vel
+            local dt = 0.03
+            
+            for i = 1, 100 do
+                tmpVel = tmpVel + grav * dt
+                predicted = predicted + tmpVel * dt
+                if predicted.Y <= 1 then
+                    predicted = Vector3.new(predicted.X, 1, predicted.Z)
+                    break
+                end
+            end
+            
+            predPart.Position = predicted
+            predPart.Transparency = 0.3
+            
+            -- Pulse
+            local p = math.abs(math.sin(tick() * 4))
+            predPart.Size = Vector3.new(2 + p * 2, 0.2, 2 + p * 2)
+        else
+            predPart.Transparency = 1
+        end
+    end)
+end
+
+-- ═══ MOVEMENT ═══
+local function StartMovement()
+    -- Speed
+    Connections.Speed = RunService.Heartbeat:Connect(function()
+        if not ScriptActive then return end
+        if Config.SpeedEnabled then
+            local h = GetHumanoid()
+            if h then h.WalkSpeed = Config.SpeedValue end
+        end
+    end)
+    
+    -- Noclip
+    Connections.Noclip = RunService.Stepped:Connect(function()
+        if not ScriptActive then return end
+        if not Config.NoclipEnabled then return end
+        local c = GetChar()
+        if c then
+            for _, p in pairs(c:GetDescendants()) do
+                if p:IsA("BasePart") then p.CanCollide = false end
+            end
+        end
+    end)
+    
+    -- Infinite Jump
+    Connections.InfJump = UserInputService.JumpRequest:Connect(function()
+        if not ScriptActive then return end
+        if Config.InfiniteJump then
+            local h = GetHumanoid()
+            if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+        end
+    end)
+end
+
+-- ═══ AUTO POSITION (BALL MAGNET) ═══
+local function StartAutoPos()
+    Connections.AutoPos = RunService.Heartbeat:Connect(function()
+        if not ScriptActive then return end
+        if not Config.AutoPosition then return end
+        
+        local ball, dist = GetClosestBall()
+        if not ball then return end
+        
+        local hrp = GetHRP()
+        if not hrp then return end
+        
+        if dist > 3 and dist < 80 then
+            local ballPos = ball.Position
+            local vel = ball.Velocity
+            
+            -- Predict slightly ahead
+            local targetPos = ballPos + vel * 0.1
+            targetPos = Vector3.new(targetPos.X, hrp.Position.Y, targetPos.Z)
+            
+            local dir = (targetPos - hrp.Position).Unit
+            local moveSpeed = math.min(dist * 0.25, 3)
+            
+            hrp.CFrame = hrp.CFrame + dir * moveSpeed
+        end
+    end)
+end
+
+-- ═══ ANTI AFK ═══
+local function StartAntiAFK()
+    Connections.AntiAFK = LP.Idled:Connect(function()
+        if Config.AntiAFK then
+            pcall(function()
+                VIM:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                task.wait(0.1)
+                VIM:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            end)
+        end
+    end)
+end
+
+-- ═══ STATUS UPDATER ═══
+local function StartStatus(statusTxt)
+    task.spawn(function()
+        while ScriptActive do
+            local features = {}
+            if Config.HitboxEnabled then table.insert(features, "HB") end
+            if Config.AutoHitEnabled then table.insert(features, "AH") end
+            if Config.AutoSwing then table.insert(features, "SW") end
+            if Config.BallESP then table.insert(features, "ESP") end
+            if Config.SpeedEnabled then table.insert(features, "SPD") end
+            if Config.AutoPosition then table.insert(features, "MAG") end
+            if Config.NoclipEnabled then table.insert(features, "NC") end
+            
+            local _, ballDist = GetClosestBall()
+            local ballTxt = ballDist < 9999 and string.format("%.0f", ballDist) or "N/A"
+            
+            local txt = "🏸 [" .. (#features > 0 and table.concat(features, "|") or "OFF") .. "]"
+            txt = txt .. " Ball:" .. ballTxt .. "st"
+            
+            if statusTxt and statusTxt.Parent then
+                statusTxt.Text = txt
+            end
+            
+            task.wait(0.3)
+        end
+    end)
+end
+
+-- ═══ KEYBIND ═══
+local function StartKeybind(mainFrame)
+    Connections.Key = UserInputService.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        if input.KeyCode == Enum.KeyCode.P then
+            GUIVisible = not GUIVisible
+            if mainFrame then mainFrame.Visible = GUIVisible end
+        end
+    end)
+end
+
+-- ═══ CHARACTER RESPAWN HANDLER ═══
+local function StartCharHandler()
+    LP.CharacterAdded:Connect(function(char)
+        task.wait(1)
+        if Config.SpeedEnabled then
+            local h = char:WaitForChild("Humanoid", 5)
+            if h then h.WalkSpeed = Config.SpeedValue end
+        end
+    end)
+end
+
+-- ════════════════════════════════════
+-- INIT
+-- ════════════════════════════════════
+local function Init()
+    print("══════════════════════════")
+    print("  RACKET RIVALS v3.0")
+    print("  Loading...")
+    print("══════════════════════════")
+    
+    local sg, mainFrame, statusTxt = BuildGUI()
+    task.wait(0.3)
+    
+    StartHitbox()
+    StartAutoHit()
+    StartBallESP()
+    StartPlayerESP()
+    StartPrediction()
+    StartMovement()
+    StartAutoPos()
+    StartAntiAFK()
+    StartStatus(statusTxt)
+    StartKeybind(mainFrame)
+    StartCharHandler()
+    
+    Notify("🏸 Racket Rivals", "Script loaded! Press P to toggle", 4)
+    
+    print("══════════════════════════")
+    print("  Loaded! Press P toggle")
+    print("══════════════════════════")
+end
+
+Init()
